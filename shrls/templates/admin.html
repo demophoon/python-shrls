@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Starter Page</title>
+    </head>
+    <body>
+        <link rel="stylesheet" href="http://cdn.brittg.com/css/bootstrap.min.css" />
+    <div class="container">
+        <table class="table table-condensed table-striped">
+            <thead>
+                <tr>
+                    <th>Short Url</th>
+                    <th>Location</th>
+                    <th>Views</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for url in urls %}
+            <tr>
+                <td>{{ url.alias }}</td>
+                <td>
+                    <a href='{{ url.location }}'>{{ url.location[:50] }}</a>
+                </td>
+                <td>{{ url.views }}</td>
+                <td>{{ url.created_at }}</td>
+                <td>
+                    <a href='#'>Update</a>
+                    <a href='#'>Delete</a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    </body>
+</html>
