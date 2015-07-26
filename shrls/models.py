@@ -1,5 +1,6 @@
 import string
 import random
+import datetime
 
 from shrls import app
 
@@ -35,7 +36,6 @@ def create_short_url():
             [random.choice(allowed_shortner_chars) for _ in range(5)]
         )
         entries = DBSession.query(Url).filter(Url.alias == alias).first()
-        print entries
         if entries:
             alias = None
     return alias
@@ -52,10 +52,10 @@ class Url(Base):
     def __init__(self, location, alias=None, views=0):
         if not(alias):
             alias = create_short_url()
-        print alias
         self.alias = alias
         self.location = location
         self.views = views
+        self.created_at = datetime.datetime.now()
 
 
     def __repr__(self):
