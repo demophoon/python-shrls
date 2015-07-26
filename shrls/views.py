@@ -30,13 +30,22 @@ def admin_index():
 @app.route('/admin/create', methods=['GET'])
 def create_url():
     longurl = request.args.get('u')
-    print longurl
+    shortid = request.args.get('s')
+    url_only = request.args.get('url_only')
     if not(longurl):
         return ""
-
     shrl = Url(longurl)
-
+    if shortid:
+        obj = DBSession.query(Url).filter(Url.alias == shortid).first()
+        if obj:
+            obj.delete()
+        shrl.alias = shortid
     DBSession.add(shrl)
     DBSession.commit()
+    alias = 'http://brittg.com/{}'.format(shrl.alias)
+    if url_only:
+        return alias
+    else:
+        return "prompt('The url has been shortened', '{}');".format(alias)
 
     return shrl.alias
