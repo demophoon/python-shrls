@@ -13,7 +13,11 @@ def index():
 def url_redirect(url_id):
     redirect_obj = DBSession.query(Url).filter(Url.alias == url_id).first()
     if redirect_obj:
-        return redirect(redirect_obj.location, code=302)
+        location = redirect_obj.location
+        redirect_obj.views += 1
+        DBSession.add(redirect_obj)
+        DBSession.commit()
+        return redirect(location, code=302)
     return redirect("http://www.brittg.com/", code=302)
 
 
