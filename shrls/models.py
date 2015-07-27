@@ -57,9 +57,30 @@ class Url(Base):
         self.views = views
         self.created_at = datetime.datetime.now()
 
-
     def __repr__(self):
         return str(self.alias) + ", " + str(self.location) + ", " + str(self.views)
+
+
+class Snippet(Base):
+    __tablename__ = 'snippets'
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime)
+    alias = Column(Text, index=True, unique=True)
+    title = Column(Text)
+    content = Column(Text)
+    views = Column(Integer)
+
+    def __init__(self, content, title=None, alias=None, views=0):
+        if not(alias):
+            alias = create_short_url()
+        self.alias = alias
+        self.content = content
+        self.title = title
+        self.views = views
+        self.created_at = datetime.datetime.now()
+
+    def __repr__(self):
+        return str(self.alias)
 
 
 def initialize_shrls_db():

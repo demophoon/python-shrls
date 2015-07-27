@@ -20,6 +20,16 @@ def index():
     return redirect("http://www.brittg.com/", code=302)
 
 
+@app.route('/code/<url_id>')
+@app.route('/c/<url_id>')
+def render_code_snippet(url_id):
+    redirect_obj = DBSession.query(Snippet).filter(Snippet.alias == url_id).first()
+    if redirect_obj:
+        print redirect_obj.content
+        return render_template('snippet.html', code=redirect_obj)
+    return redirect("http://www.brittg.com/", code=302)
+
+
 @app.route('/uploads/<path:filename>')
 @app.route('/u/<path:filename>')
 def return_uploaded_file(filename):
@@ -72,6 +82,26 @@ def create_url():
         return alias
     else:
         return "prompt('The url has been shortened', '{}');".format(alias)
+
+
+@app.route('/admin/snippet', methods=['POST'])
+def create_snippet():
+    print request.args
+    content = request.form.get('c')
+    title = request.form.get('t')
+    shortid = request.form.get('s')
+    if not content:
+        return "Error"
+    shrl = Snippet(content, title=title)
+    if shortid:
+        obj = DBSession.query(Snippet).filter(Snippet.alias == shortid).first()
+        if obj:
+            obj.delete()
+        shrl.alias = shortid
+    DBSession.add(shrl)
+    DBSession.commit()
+    alias = 'http://brittg.com/c/{}'.format(shrl.alias)
+    return alias
 
 
 @app.route('/admin/upload', methods=['POST'])

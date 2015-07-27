@@ -3,12 +3,39 @@
     <head>
         <meta charset="UTF-8">
         <title>SHRLS Admin Page</title>
+        <link rel="stylesheet" href="/static/bootstrap.min.css" />
+        <link rel="stylesheet" href="/static/bootstrap-responsive.min.css" />
+        <link rel="stylesheet" href="/static/dropzone.css" />
+
+        <style type='text/css'>
+            body {
+                padding-top: 10px;
+            }
+        </style>
+
     </head>
     <body>
         <script src="/static/dropzone.js"></script>
-        <link rel="stylesheet" href="/static/bootstrap.min.css" />
-        <link rel="stylesheet" href="/static/dropzone.css" />
-
+        <script src="/static/jquery.min.js"></script>
+        <script type='text/javascript'>
+            function upload_snippet() {
+                content = $('#content').val();
+                title = $('#title').val();
+                $.ajax({
+                    url: '/admin/snippet',
+                    method: 'POST',
+                    data: {
+                        'c': content,
+                        't': title,
+                    },
+                    success: function(data) {
+                        prompt("Snippet has been uploaded successfully!", data);
+                        $('#content').val("");
+                        $('#title').val("");
+                    },
+                });
+            }
+        </script>
         <div class="container">
 
             <div class="navbar">
@@ -19,8 +46,27 @@
                 </div>
             </div>
 
-            <div class='well span-8 dropzone' id='uploadFile'>
+            <div class='row'>
+                <div class='span4'>
+                    <div class='row-fluid'>
+                        <div class='dropzone' id='uploadFile'></div>
+                    </div>
+                </div>
+                <div class='offset1 span7'>
+                    <div class='row-fluid'>
+                        <div class="row">
+                            <input id='title' type='text' class='offset1 span10' name='t' placeholder='Snippet Title' />
+                        </div>
+                        <div class="row">
+                            <textarea id='content' class='span12' rows=7 name='c'></textarea>
+                        </div>
+                        <div class='row'>
+                            <button type='button' onclick="upload_snippet()" class='span4 btn'>Upload Snippet</button>
+                        </div>
+                    </div>
+                </div>
             </div>
+
 
             <table class="table table-condensed table-striped">
                 <thead>
