@@ -46,9 +46,16 @@ def requires_auth(f):
     return decorated
 
 
+def not_found():
+    if app.config['shrls_redirect_unknown'] == True:
+        return redirect(app.config['shrls_redirect_url'], code=302)
+    else:
+        return Response("File not found", 404)
+
+
 @app.route('/')
 def index():
-    return redirect("http://www.brittg.com/", code=302)
+    return not_found()
 
 
 @app.route('/code/<url_id>')
@@ -57,7 +64,7 @@ def render_code_snippet(url_id):
     redirect_obj = DBSession.query(Snippet).filter(Snippet.alias == url_id).first()
     if redirect_obj:
         return render_template('snippet.html', code=redirect_obj)
-    return redirect("http://www.brittg.com/", code=302)
+    return not_found()
 
 
 @app.route('/uploads/<path:filename>')
@@ -71,7 +78,7 @@ def return_uploaded_file(filename):
         DBSession.add(redirect_obj)
         DBSession.commit()
         return redirect(location, code=302)
-    return redirect("http://www.brittg.com/", code=302)
+    return not_found()
 
 
 @app.route('/<url_id>')
@@ -83,7 +90,7 @@ def url_redirect(url_id):
         DBSession.add(redirect_obj)
         DBSession.commit()
         return redirect(location, code=302)
-    return redirect("http://www.brittg.com/", code=302)
+    return not_found()
 
 
 @app.route('/admin/')
@@ -109,7 +116,7 @@ def create_url():
         shrl.alias = shortid
     DBSession.add(shrl)
     DBSession.commit()
-    alias = 'http://brittg.com/{}'.format(shrl.alias)
+    alias = '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
     if url_only:
         return alias
     else:
@@ -133,7 +140,7 @@ def create_snippet():
         shrl.alias = shortid
     DBSession.add(shrl)
     DBSession.commit()
-    alias = 'http://brittg.com/c/{}'.format(shrl.alias)
+    alias = '{}/c/{}'.format(app.config['shrls_base_url'], shrl.alias)
     return alias
 
 
@@ -154,5 +161,5 @@ def upload_file():
         app.config['UPLOAD_FOLDER'],
         filename)
     )
-    alias = "http://brittg.com/u/{}".format(filename)
+    alias = "{}/u/{}".format(app.config['shrls_base_url'], filename)
     return alias
