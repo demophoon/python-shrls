@@ -63,6 +63,9 @@ def index():
 def render_code_snippet(url_id):
     redirect_obj = DBSession.query(Snippet).filter(Snippet.alias == url_id).first()
     if redirect_obj:
+        redirect_obj.views += 1
+        DBSession.add(redirect_obj)
+        DBSession.commit()
         return render_template('snippet.html', code=redirect_obj)
     return not_found()
 
@@ -71,14 +74,6 @@ def render_code_snippet(url_id):
 @app.route('/u/<path:filename>')
 def return_uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-    redirect_obj = DBSession.query(Url).filter(Url.alias == url_id).first()
-    if redirect_obj:
-        location = redirect_obj.location
-        redirect_obj.views += 1
-        DBSession.add(redirect_obj)
-        DBSession.commit()
-        return redirect(location, code=302)
-    return not_found()
 
 
 @app.route('/<url_id>')
