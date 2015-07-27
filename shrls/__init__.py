@@ -7,6 +7,9 @@ app = Flask(__name__, static_url_path='/static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////%s/urls.db' % os.getcwd()
 app.config['UPLOAD_FOLDER'] = '%s/uploads/' % os.getcwd()
 
+app.config['shrls_username'] = 'admin'
+app.config['shrls_password'] = 'changemenow'
+
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 

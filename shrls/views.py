@@ -12,7 +12,38 @@ from flask import (
 from werkzeug import secure_filename
 
 from shrls import app
-from shrls.models import DBSession, Url
+from shrls.models import (
+    DBSession,
+    Url,
+    Snippet,
+    allowed_shortner_chars,
+)
+
+
+def check_auth(username, password):
+    """This function is called to check if a username /
+    password combination is valid.
+    """
+    return all([username == app.config['shrls_username'],
+                password == app.config['shrls_password']])
+
+
+def authenticate():
+    """Sends a 401 response that enables basic auth"""
+    return Response(
+    'Could not verify your access level for that URL.\n'
+    'You have to login with proper credentials', 401,
+    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
 
 
 @app.route('/')
@@ -25,7 +56,6 @@ def index():
 def render_code_snippet(url_id):
     redirect_obj = DBSession.query(Snippet).filter(Snippet.alias == url_id).first()
     if redirect_obj:
-        print redirect_obj.content
         return render_template('snippet.html', code=redirect_obj)
     return redirect("http://www.brittg.com/", code=302)
 
@@ -57,12 +87,14 @@ def url_redirect(url_id):
 
 
 @app.route('/admin/')
+@requires_auth
 def admin_index():
     urls = DBSession.query(Url).order_by(Url.created_at.desc()).all()
     return render_template('admin.html', urls=urls)
 
 
 @app.route('/admin/create', methods=['GET'])
+@requires_auth
 def create_url():
     longurl = request.args.get('u')
     shortid = request.args.get('s')
@@ -85,6 +117,7 @@ def create_url():
 
 
 @app.route('/admin/snippet', methods=['POST'])
+@requires_auth
 def create_snippet():
     print request.args
     content = request.form.get('c')
