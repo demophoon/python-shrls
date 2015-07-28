@@ -95,23 +95,27 @@ def admin_index():
     return render_template('admin.html', urls=urls)
 
 
+def create_url(longurl, shorturl=None):
+    shrl = Url(longurl)
+    if shorturl:
+        obj = DBSession.query(Url).filter(Url.alias == shorturl).first()
+        if obj:
+            obj.delete()
+        shrl.alias = shorturl
+    DBSession.add(shrl)
+    DBSession.commit()
+    return '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
+
+
 @app.route('/admin/create', methods=['GET'])
 @requires_auth
-def create_url():
+def render_url():
     longurl = request.args.get('u')
     shortid = request.args.get('s')
     url_only = request.args.get('url_only')
     if not(longurl):
-        return ""
-    shrl = Url(longurl)
-    if shortid:
-        obj = DBSession.query(Url).filter(Url.alias == shortid).first()
-        if obj:
-            obj.delete()
-        shrl.alias = shortid
-    DBSession.add(shrl)
-    DBSession.commit()
-    alias = '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
+        return "prompt('No url specified.')"
+    alias = create_url(longurl, shorturl=shortid)
     if url_only:
         return alias
     else:
@@ -136,6 +140,7 @@ def create_snippet():
     DBSession.add(shrl)
     DBSession.commit()
     alias = '{}/c/{}'.format(app.config['shrls_base_url'], shrl.alias)
+    alias = create_url(alias)
     return alias
 
 
@@ -157,4 +162,5 @@ def upload_file():
         filename)
     )
     alias = "{}/u/{}".format(app.config['shrls_base_url'], filename)
+    alias = create_url(alias)
     return alias
