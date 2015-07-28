@@ -31,9 +31,9 @@ def check_auth(username, password):
 def authenticate():
     """Sends a 401 response that enables basic auth"""
     return Response(
-    'Could not verify your access level for that URL.\n'
-    'You have to login with proper credentials', 401,
-    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+        'Could not verify your access level for that URL.\n'
+        'You have to login with proper credentials', 401,
+        {'WWW-Authenticate': 'Basic realm="Login Required"'})
 
 
 def requires_auth(f):
@@ -47,7 +47,7 @@ def requires_auth(f):
 
 
 def not_found():
-    if app.config['shrls_redirect_unknown'] == True:
+    if app.config['shrls_redirect_unknown']:
         return redirect(app.config['shrls_redirect_url'], code=302)
     else:
         return Response("File not found", 404)
