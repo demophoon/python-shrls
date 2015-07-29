@@ -78,6 +78,7 @@ def return_uploaded_file(filename):
 
 @app.route('/<url_id>')
 def url_redirect(url_id):
+    url_id = url_id.split('.')[0]
     redirect_obj = DBSession.query(Url).filter(Url.alias == url_id).first()
     if redirect_obj:
         location = redirect_obj.location
