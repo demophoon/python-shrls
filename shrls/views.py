@@ -76,7 +76,7 @@ def return_uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
-@app.route('/<url_id>')
+@app.route('/<path:url_id>')
 def url_redirect(url_id):
     url_id = url_id.split('.')[0]
     redirect_obj = DBSession.query(Url).filter(Url.alias == url_id).first()
@@ -96,13 +96,15 @@ def admin_index():
     return render_template('admin.html', urls=urls)
 
 
-def create_url(longurl, shorturl=None):
+def create_url(longurl, shorturl=None, creator=None):
     shrl = Url(longurl)
     if shorturl:
         obj = DBSession.query(Url).filter(Url.alias == shorturl).first()
         if obj:
             obj.delete()
         shrl.alias = shorturl
+    if creator:
+        shrl.alias = "{}/{}".format(creator, shrl.alias)
     DBSession.add(shrl)
     DBSession.commit()
     return '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
@@ -111,12 +113,13 @@ def create_url(longurl, shorturl=None):
 @app.route('/admin/create', methods=['GET'])
 @requires_auth
 def render_url():
+    creator = request.args.get('c')
     longurl = request.args.get('u')
     shortid = request.args.get('s')
     url_only = request.args.get('url_only')
     if not(longurl):
         return "prompt('No url specified.')"
-    alias = create_url(longurl, shorturl=shortid)
+    alias = create_url(longurl, shorturl=shortid, creator=creator)
     if url_only:
         return alias
     else:
