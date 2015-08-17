@@ -101,7 +101,8 @@ def create_url(longurl, shorturl=None, creator=None):
     if shorturl:
         obj = DBSession.query(Url).filter(Url.alias == shorturl).first()
         if obj:
-            obj.delete()
+            DBSession.delete(obj)
+            DBSession.commit()
         shrl.alias = shorturl
     if creator:
         shrl.alias = "{}/{}".format(creator, shrl.alias)
@@ -139,7 +140,8 @@ def create_snippet():
     if shortid:
         obj = DBSession.query(Snippet).filter(Snippet.alias == shortid).first()
         if obj:
-            obj.delete()
+            DBSession.delete(obj)
+            DBSession.commit()
         shrl.alias = shortid
     DBSession.add(shrl)
     DBSession.commit()
