@@ -92,7 +92,7 @@ def url_redirect(url_id):
 @app.route('/admin/')
 @requires_auth
 def admin_index():
-    urls = DBSession.query(Url).order_by(Url.created_at.desc()).all()
+    urls = DBSession.query(Url).order_by(Url.created_at.asc()).all()
     return render_template('admin.html', urls=urls)
 
 
