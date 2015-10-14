@@ -107,6 +107,9 @@ def admin_index():
         order_by = 'created_at'
     if not sort_by or sort_by.lower() not in ['asc', 'desc']:
         sort_by = 'desc'
+    order_by = order_by.lower()
+    sort_by = sort_by.lower()
+
     urls = urls.order_by(getattr(getattr(Url, order_by), sort_by)())
 
     for f in request.args.getlist('filter'):
