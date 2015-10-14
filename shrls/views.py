@@ -92,8 +92,11 @@ def url_redirect(url_id):
 @app.route('/admin/')
 @requires_auth
 def admin_index():
-    urls = DBSession.query(Url).order_by(Url.created_at.desc()).all()
-    return render_template('admin.html', urls=urls)
+    page = int(request.args.get('page', 0))
+    count = int(request.args.get('count', 50))
+    urls = DBSession.query(Url).order_by(Url.created_at.desc())
+    urls = urls.all()
+    return render_template('admin.html', urls=urls, page=page, count=count)
 
 
 def create_url(longurl, shorturl=None, creator=None):
