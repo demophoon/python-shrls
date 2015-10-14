@@ -19,6 +19,11 @@ from shrls.models import (
     allowed_shortner_chars,
 )
 
+from sqlalchemy import (
+    or_,
+    not_,
+)
+
 
 def check_auth(username, password):
     """This function is called to check if a username /
@@ -94,9 +99,41 @@ def url_redirect(url_id):
 def admin_index():
     page = int(request.args.get('page', 0))
     count = int(request.args.get('count', 50))
-    urls = DBSession.query(Url).order_by(Url.created_at.desc())
+    urls = DBSession.query(Url)
+
+    order_by = request.args.get('order_by')
+    sort_by = request.args.get('sort')
+    if not order_by or order_by.lower() not in ['id', 'created_at', 'alias', 'views', 'location']:
+        order_by = 'created_at'
+    if not sort_by or sort_by.lower() not in ['asc', 'desc']:
+        sort_by = 'desc'
+    urls = urls.order_by(getattr(getattr(Url, order_by), sort_by)())
+
+    for f in request.args.getlist('filter'):
+        urls = urls.filter(or_(
+            Url.alias.ilike("%{}%".format(f)),
+            Url.location.ilike("%{}%".format(f)),
+        ))
+
+    for f in request.args.getlist('exclude'):
+        urls = urls.filter(not_(
+            or_(
+                Url.alias.ilike("%{}%".format(f)),
+                Url.location.ilike("%{}%".format(f)),
+            )
+        ))
+
     urls = urls.all()
-    return render_template('admin.html', urls=urls, page=page, count=count)
+
+    urlparams = []
+    for k, v in request.args.iteritems():
+        if k == 'page':
+            continue
+        urlparams.append("{}={}".format(k, v))
+    params = "?{}".format("&".join(urlparams))
+    if urlparams:
+        params += "&"
+    return render_template('admin.html', urls=urls, page=page, count=count, params=params)
 
 
 def create_url(longurl, shorturl=None, creator=None):

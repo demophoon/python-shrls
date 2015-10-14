@@ -122,10 +122,10 @@
                 {% endfor %}
                 </tbody>
             </table>
-            <a href='/admin/?page={{ page - 1 }}'>
+            <a href='/admin/{{ params }}page={{ page - 1 }}'>
                 <input class='btn' type='button' class='button' value='Previous Page' name='' />
             </a>
-            <a href='/admin/?page={{ page + 1 }}'>
+            <a href='/admin/{{ params }}page={{ page + 1 }}'>
                 <input class='btn' type='button' class='button' value='Next Page' name='' />
             </a>
         </div>
