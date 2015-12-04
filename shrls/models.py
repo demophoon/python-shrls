@@ -45,7 +45,7 @@ class Url(Base):
     __tablename__ = 'urls'
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime)
-    alias = Column(Text, index=True, unique=True)
+    alias = Column(Text, index=True)
     location = Column(Text)
     views = Column(Integer)
 

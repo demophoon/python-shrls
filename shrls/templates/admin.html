@@ -64,6 +64,9 @@
                     <a class="brand" href="#">SHRLS Admin</a>
                     <ul class="nav">
                     </ul>
+                    <form action='/admin/' class='navbar-search pull-right' method='get'>
+                        <input type='text' class='search-query' value='{{ search }}' placeholder='Search' name='search' />
+                    </form>
                 </div>
             </div>
 
@@ -76,13 +79,11 @@
                 <div class='offset1 span7'>
                     <div class='row-fluid'>
                         <div class="row">
-                            <input id='title' type='text' class='offset1 span10' name='t' placeholder='Snippet Title' />
+                            <input id='title' type='text' class='span8' name='t' placeholder='Snippet Title' />
+                            <button type='button' onclick="upload_snippet()" class='span4 btn pull-right'>Upload Snippet</button>
                         </div>
                         <div class="row">
                             <textarea id='content' style='font-family: monospace;' class='span12' rows=7 name='c'></textarea>
-                        </div>
-                        <div class='row'>
-                            <button type='button' onclick="upload_snippet()" class='span4 btn'>Upload Snippet</button>
                         </div>
                     </div>
                 </div>
@@ -91,10 +92,10 @@
             <div class='form-inline'>
                 <input class='span8' id='shrl_url' type='text' name='u' placeholder='Url' />
                 <input class='span2' id='shrl_short' type='text' name='s' placeholder='Short ID' />
-                <input class='span2 input btn' onclick='create_shrl()' type='button' class='button' value='Create Url' name='' />
+                <input class='span2 input btn pull-right' onclick='create_shrl()' type='button' class='button' value='Create Url' name='' />
             </div>
 
-            <table class="table table-condensed table-striped">
+            <table class="table table-condensed table-striped table-hover">
                 <thead>
                     <tr>
                         <th>Short Url</th>

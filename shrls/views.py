@@ -84,7 +84,8 @@ def return_uploaded_file(filename):
 @app.route('/<path:url_id>')
 def url_redirect(url_id):
     url_id = url_id.split('.')[0]
-    redirect_obj = DBSession.query(Url).filter(Url.alias == url_id).first()
+    redirect_obj = DBSession.query(Url).filter(Url.alias == url_id).all()
+    redirect_obj = random.choice(redirect_obj)
     if redirect_obj:
         location = redirect_obj.location
         redirect_obj.views += 1
@@ -112,13 +113,36 @@ def admin_index():
 
     urls = urls.order_by(getattr(getattr(Url, order_by), sort_by)())
 
-    for f in request.args.getlist('filter'):
+    include = request.args.getlist('include')
+    exclude = request.args.getlist('exclude')
+    searches = request.args.getlist('search')
+
+    t = {
+        '+': include,
+        '-': exclude,
+    }
+    searches = [[word for word in x.split(' ') if word] for x in searches if x]
+    for search in searches:
+        mode = '+'
+        phrase = []
+        for word in search:
+            if word and word[0] in ['-', '+']:
+                if phrase:
+                    t[mode].append(' '.join(phrase))
+                phrase = []
+                mode = word[0]
+                word = word[1:]
+            if word:
+                phrase.append(word)
+        t[mode].append(' '.join(phrase))
+
+    for f in include:
         urls = urls.filter(or_(
             Url.alias.ilike("%{}%".format(f)),
             Url.location.ilike("%{}%".format(f)),
         ))
 
-    for f in request.args.getlist('exclude'):
+    for f in exclude:
         urls = urls.filter(not_(
             or_(
                 Url.alias.ilike("%{}%".format(f)),
@@ -130,22 +154,24 @@ def admin_index():
 
     urlparams = []
     for k, v in request.args.iteritems():
-        if k == 'page':
+        if k in ['page', 'order_by', 'sort']:
             continue
         urlparams.append("{}={}".format(k, v))
     params = "?{}".format("&".join(urlparams))
     if urlparams:
         params += "&"
-    return render_template('admin.html', urls=urls, page=page, count=count, params=params)
+    searches = ' '.join([' '.join(x) for x in searches])
+    return render_template('admin.html', urls=urls, page=page, count=count, params=params, search=searches)
 
 
-def create_url(longurl, shorturl=None, creator=None):
+def create_url(longurl, shorturl=None, creator=None, overwrite=None):
     shrl = Url(longurl)
     if shorturl:
-        obj = DBSession.query(Url).filter(Url.alias == shorturl).first()
-        if obj:
-            DBSession.delete(obj)
-            DBSession.commit()
+        if overwrite:
+            obj = DBSession.query(Url).filter(Url.alias == shorturl).first()
+            if obj:
+                DBSession.delete(obj)
+                DBSession.commit()
         shrl.alias = shorturl
     if creator:
         shrl.alias = "{}/{}".format(creator, shrl.alias)
@@ -160,10 +186,11 @@ def render_url():
     creator = request.args.get('c')
     longurl = request.args.get('u')
     shortid = request.args.get('s')
+    overwrite = request.args.get('o', True)
     url_only = request.args.get('url_only')
     if not(longurl):
         return "prompt('No url specified.')"
-    alias = create_url(longurl, shorturl=shortid, creator=creator)
+    alias = create_url(longurl, shorturl=shortid, creator=creator, overwrite=overwrite)
     if url_only:
         return alias
     else:
@@ -197,7 +224,7 @@ def create_snippet():
 @requires_auth
 def upload_file():
     f = request.files['file']
-    save_as = request.args.get('s')
+    save_as = request.form.get('s')
 
     name = secure_filename(f.filename)
     extension = name.split('.')[-1]
@@ -205,11 +232,14 @@ def upload_file():
         save_as = ''.join(
             [random.choice(allowed_shortner_chars) for _ in range(5)]
         )
-    filename = "{}.{}".format(save_as, extension)
+    filename = "{}.{}".format(
+        ''.join([x for x in save_as if x in allowed_shortner_chars]),
+        extension
+    )
     f.save(os.path.join(
         app.config['UPLOAD_FOLDER'],
         filename)
     )
     alias = "{}/u/{}".format(app.config['shrls_base_url'], filename)
-    alias = create_url(alias)
+    alias = create_url(alias, shorturl=save_as)
     return alias
