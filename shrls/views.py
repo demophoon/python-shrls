@@ -58,6 +58,12 @@ def not_found():
         return Response("File not found", 404)
 
 
+@app.route('/.well-known/acme-challenge/<path:challenge>')
+def letsencrypt_challenge(challenge):
+    challenge_path = '.well-known/acme-challenge/{}'.format(challenge)
+    return send_from_directory(app.config['UPLOAD_FOLDER'], challenge_path)
+
+
 @app.route('/')
 def index():
     return not_found()
