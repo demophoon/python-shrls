@@ -8,8 +8,10 @@ from flask import (
     request,
     Response,
     send_from_directory,
+    session,
 )
 from werkzeug import secure_filename
+from oath import GoogleAuthenticator
 
 from shrls import app
 from shrls.models import (
@@ -29,8 +31,25 @@ def check_auth(username, password):
     """This function is called to check if a username /
     password combination is valid.
     """
-    return all([username == app.config['shrls_username'],
-                password == app.config['shrls_password']])
+    obj = {'login': False}
+    authenticated = session.get('login_key')
+    for user in app.config.get('shrls_users'):
+
+        if user.get('shrls_totp'):
+            a = GoogleAuthenticator(user['shrls_totp'])
+            if all([username == user['shrls_username'],
+                    password == a.generate()]) or authenticated == app.config.get('login_key'):
+                session['login_key'] = app.config.get('login_key')
+                obj['login'] = True
+                break
+        else:
+            if all([username == user['shrls_username'],
+                    password == user['shrls_password']]):
+                obj['login'] = True
+                break
+    if obj['login']:
+        obj['admin'] = user.get('shrls_admin')
+    return obj
 
 
 def authenticate():
@@ -45,7 +64,12 @@ def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
+        if not auth or 'logout' in request.args:
+            return authenticate()
+        is_login = check_auth(auth.username, auth.password)
+        if is_login['login']:
+            session['admin'] = is_login['admin']
+        else:
             return authenticate()
         return f(*args, **kwargs)
     return decorated
@@ -192,8 +216,12 @@ def render_url():
     creator = request.args.get('c')
     longurl = request.args.get('u')
     shortid = request.args.get('s')
-    overwrite = request.args.get('o', True)
+    overwrite = request.args.get('o', False)
     url_only = request.args.get('url_only')
+
+    if overwrite and not session['admin']:
+        return "prompt('You do not have permission to overwrite existing urls.')"
+
     if not(longurl):
         return "prompt('No url specified.')"
     alias = create_url(longurl, shorturl=shortid, creator=creator, overwrite=overwrite)

@@ -12,6 +12,7 @@ setup(
         'Flask',
         'Flask-SQLAlchemy',
         'sqlalchemy',
+        'oath',
     ],
     entry_points="""\
     [console_scripts]
