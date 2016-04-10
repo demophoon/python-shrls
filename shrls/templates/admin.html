@@ -32,6 +32,7 @@
                         prompt("Snippet has been uploaded successfully!", data);
                         $('#content').val("");
                         $('#title').val("");
+                        $('#shrl_overwrite').attr('checked', '');
                     },
                 });
             }
@@ -43,6 +44,9 @@
                     var data = {u: url};
                 } else {
                     var data = {u: url, s: shrl};
+                }
+                if ($('#shrl_overwrite').attr('checked') == 'checked') {
+                    data['o'] = true;
                 }
                 data['url_only'] = true;
                 $.ajax({
@@ -92,17 +96,28 @@
             <div class='form-inline'>
                 <input class='span8' id='shrl_url' type='text' name='u' placeholder='Url' />
                 <input class='span2' id='shrl_short' type='text' name='s' placeholder='Short ID' />
+                <input type='checkbox' id='shrl_overwrite' class='checkbox' value='True' name='o' />
                 <input class='span2 input btn pull-right' onclick='create_shrl()' type='button' class='button' value='Create Url' name='' />
             </div>
 
             <table class="table table-condensed table-striped table-hover">
                 <thead>
                     <tr>
-                        <th>Short Url</th>
-                        <th>Location</th>
-                        <th>Views</th>
-                        <th>Created</th>
-                        <th>Actions</th>
+                        <th>
+                            <a href='/admin/{{ params }}page={{ page }}&order_by=alias'>Short Url</a>
+                        </th>
+                        <th>
+                            <a href='/admin/{{ params }}page={{ page }}&order_by=location'>Location</a>
+                        </th>
+                        <th>
+                            Views
+                        </th>
+                        <th>
+                            Created
+                        </th>
+                        <th>
+                            Actions
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -117,7 +132,7 @@
                     <td>{{ url.views }}</td>
                     <td>{{ url.created_at }}</td>
                     <td>
-                        <a href='#' onclick="$('#shrl_url').val('{{ url.location }}');$('#shrl_short').val('{{ url.alias }}');">Update</a>
+                        <a href='#' onclick="$('#shrl_url').val('{{ url.location }}');$('#shrl_short').val('{{ url.alias }}');$('#shrl_overwrite').attr('checked', 'checked');">Update</a>
                     </td>
                 </tr>
                 {% endfor %}
