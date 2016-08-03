@@ -37,6 +37,24 @@
                 });
             }
 
+            function add_shrl(url, shrl, overwrite) {
+                if (shrl.trim() == '') {
+                    data = {u: url};
+                } else {
+                    data = {u: url, s: shrl};
+                }
+                data['o'] = overwrite;
+                data['url_only'] = true;
+                $.ajax({
+                    url: '/admin/create',
+                    method: 'GET',
+                    data: data,
+                    success: function(d) {
+                        console.log(d);
+                    },
+                });
+            }
+
             function create_shrl() {
                 url = $('#shrl_url').val();
                 shrl = $('#shrl_short').val();
@@ -45,9 +63,7 @@
                 } else {
                     var data = {u: url, s: shrl};
                 }
-                if ($('#shrl_overwrite').attr('checked') == 'checked') {
-                    data['o'] = true;
-                }
+                data['o'] = $('#shrl_overwrite').is(':checked');
                 data['url_only'] = true;
                 $.ajax({
                     url: '/admin/create',
@@ -65,7 +81,7 @@
 
             <div class="navbar">
                 <div class="navbar-inner">
-                    <a class="brand" href="#">SHRLS Admin</a>
+                    <a class="brand" href="/admin/">SHRLS Admin</a>
                     <ul class="nav">
                     </ul>
                     <form action='/admin/' class='navbar-search pull-right' method='get'>
@@ -124,7 +140,7 @@
                 {% for url in urls[(page * count):((page + 1) * count)] %}
                 <tr>
                     <td>
-                        <a target="_blank" href='/{{ url.alias }}'>{{ url.alias }}</a>
+                        <a target="_blank" href='/{{ url.alias }}'>{{ url.alias[:20] }}</a>
                     </td>
                     <td>
                         <a target="_blank" href='{{ url.location }}'>{{ url.location[:50] }}</a>
@@ -145,6 +161,14 @@
                 <input class='btn' type='button' class='button' value='Next Page' name='' />
             </a>
         </div>
+
+        <hr>
+
+        <form action="/admin/restore/" method="post" enctype="multipart/form-data">
+            Restore from backup:
+            <input type="file" name="file">
+            <input type="submit" value="restore" name="submit">
+        </form>
 
         <script type="text/javascript" charset="utf-8">
             var myDropzone = new Dropzone("div#uploadFile", {

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{{ code.title }}</title>
+        <link rel="stylesheet" href="/static/bootstrap.min.css" type="text/css" media="screen" charset="utf-8">
+        <link rel="stylesheet" href="/static/bootstrap-responsive.min.css" type="text/css" media="screen" charset="utf-8">
+
+        <style type="text/css" media="screen">
+            body {
+                padding-top: 25px;
+                padding-bottom: 25px;
+            }
+        </style>
+
+        <script type="text/javascript" charset="utf-8" src="/static/jquery.min.js"></script>
+        <script type="text/javascript" charset="utf-8" src="/static/knockout-min.js"></script>
+        <script type="text/javascript" charset="utf-8" src="/static/bootstrap.js"></script>
+        <script type="text/javascript" charset="utf-8" src="/static/md5.min.js"></script>
+        <script type="text/javascript" charset="utf-8" src="/static/require.js"></script>
+    </head>
+    <body>
+
+    <div class='container'>
+        <!-- ko if: ! verified() && ! valid() && ! signature() -->
+        <div class="alert">
+            This message doesn't appear to contain a signature.
+        </div>
+        <!-- /ko -->
+
+        <!-- ko if: signature() && ! verified() && ! valid() -->
+        <div class="alert alert-error">
+            <strong>Warning!</strong> This message was signed using an untrusted key!!
+        </div>
+        <!-- /ko -->
+
+        <!-- ko if: verified() && ! valid() && signature() -->
+        <div class="alert alert-info">
+            This message appears to be signed however there was a problem.<br>
+            Your browser couldn't contact <b><span data-bind="text: key_server"></span></b> to verify that the signing key is still valid.
+        </div>
+        <!-- /ko -->
+
+        <!-- ko if: verified() && valid() && signature() -->
+        <div class="alert alert-success">
+            <strong>Verified!</strong> This message was signed by <a href="#" class="gpg_info"><strong data-bind="text: name"></strong></a> using a currently active GPG key.
+        </div>
+        <!-- /ko -->
+
+        <pre data-bind="text: message">{{ code.content|safe }}</pre>
+
+        <a href="#payload" role="button" class="btn" data-toggle="modal">View raw payload</a>
+        <div id="payload" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="payload_label" aria-hidden="true">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">x</button>
+                <h3 id="payload_label">Raw Payload</h3>
+            </div>
+            <div class="modal-body">
+                <pre style="font-size: small;" data-bind="text: raw_payload">{{ code.content|safe }}</pre>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" data-dismiss="modal" aria-hidden="true">Close</button>
+            </div>
+        </div>
+
+    </div>
+
+
+    <script type="text/javascript" charset="utf-8">
+var viewModel;
+        (function() {
+            var openpgp;
+
+            var signed_msg = "{{ code.content.replace('\n', '\\n').replace('"', '\\"')|safe }}";
+
+            var key_fingerprints = ['083b3535ec5e3aba', 'f4c92a6071daec7b', '611cc6d0f47773d3'];
+            var key_server = 'https://pgp.mit.edu';
+
+
+            viewModel = {
+                raw_payload: ko.observable(),
+                message: ko.observable(),
+                signature: ko.observable(false),
+                verified: ko.observable(false),
+                valid: ko.observable(false),
+                name: ko.observable(),
+                email: ko.observable(),
+                comment: ko.observable(),
+                fingerprints: key_fingerprints.map(function(item){return item.toLowerCase()}),
+                key_server: key_server,
+                signing_id: ko.observable(),
+            }
+
+            require(['/static/openpgp.min.js'], function(mod) {
+                var pubkey;
+                openpgp = mod;
+                openpgp.initWorker({ path: '/static/openpgp.worker.min.js' });
+                openpgp.config.aead_protect = true;
+
+                verify_message(signed_msg);
+                verify_message_with_key_lookup(signed_msg, "0x" + viewModel.fingerprints[0], key_server);
+            });
+
+            function gravatar_img_url(email, size) {
+                if (size == undefined) {
+                    size = 300;
+                }
+                return "https://www.gravatar.com/avatar/" + md5(email) + "?s=" + size;
+            }
+
+            function display_signature_verification(result) {
+                viewModel.message(result.message);
+                viewModel.signature(result.signature);
+                viewModel.verified(result.verified);
+                viewModel.valid(result.valid);
+                viewModel.signing_id(result.signing_id);
+                if (result.valid) {
+                    var keyserver_url = viewModel.key_server + "/pks/lookup?op=vindex&search=0x" + encodeURIComponent(viewModel.signing_id());
+                    var comment = "";
+                    if (viewModel.comment()) {
+                        comment = viewModel.comment() + "<br>";
+                    }
+                    $('.gpg_info').popover('destroy');
+                    $('.gpg_info').popover({
+                        html: true,
+                        title: "<h5>This message has been signed by</h5>",
+                        content: [
+                            "<div style='color: #333'><small>",
+                            "<div class='media'>",
+                            "<a class='pull-left' target='_blank', href='", gravatar_img_url(viewModel.email()), "'>",
+                                "<img class='media-object' src='", gravatar_img_url(viewModel.email(), 64), "'>",
+                            "</a>",
+                            "<div class='media-body'><h4 class='media-heading'>", viewModel.name(), "</h4>",
+
+                            comment,
+                            "<b><a href='mailto:", viewModel.email(), "'>", viewModel.email(), "</a></b><br>",
+                            "Key id: <b>", viewModel.signing_id(), "</b>",
+
+                            "</div></div><hr>",
+
+                            "The above information was retrieved from the following key server:<br>",
+                            "<a href='" + keyserver_url + "' target='_blank'>", viewModel.key_server, "</a>",
+                            "</small></div>",
+                        ].join(''),
+                        placement: 'bottom',
+                    });
+                }
+            }
+
+            function verification_check(verification, result) {
+                if (verification.signatures && verification.signatures.length > 0) {
+                    result.signature = true
+                    result.signing_id = verification.signatures[0].keyid.toHex();
+                    if (viewModel.fingerprints.indexOf(result.signing_id) > -1) {
+                        result.verified = true;
+                    }
+                    if (verification.signatures[0].valid) {
+                        result.valid = true;
+                    }
+                }
+            }
+
+            function verify_message(message, publicKeys) {
+                viewModel.raw_payload(message);
+
+                if (publicKeys == undefined) {
+                    publicKeys = []
+                }
+
+                var result = {
+                    verified: false,
+                    valid: false,
+                    signature: false,
+                    message: null,
+                    signing_id: null,
+                };
+                var verification;
+
+                if (message.match("BEGIN PGP SIGNED MESSAGE")) {
+                    // Clear-signed message
+                    verification = openpgp.cleartext.readArmored(message);
+                    result.message = verification.text;
+                    verifyOpt = {
+                        publicKeys: publicKeys,
+                        message: verification,
+                    }
+                    openpgp.verify(verifyOpt).then(function(verify_status) {
+                        verification = verify_status;
+                        verification_check(verification, result);
+                        display_signature_verification(result);
+                    });
+                } else if (message.match("BEGIN PGP MESSAGE")) {
+                    // Signed message
+                    verification = openpgp.message.readArmored(message);
+                    result.message = verification.getText();
+                    verification = {signatures: verification.verify(publicKeys)};
+                    verification_check(verification, result);
+                    display_signature_verification(result);
+                } else {
+                    // Not signed
+                    result.message = message;
+                    display_signature_verification(result);
+                }
+            }
+
+            function verify_message_with_key_lookup(message, search, key_server) {
+                if (! message.match("BEGIN PGP SIGNED MESSAGE") && ! message.match("BEGIN PGP MESSAGE")) {
+                    return;
+                }
+                var options = {
+                    query: search
+                };
+
+                var hkp = new openpgp.HKP(key_server);
+                hkp.lookup(options).then(function(key) {
+                    pubkey = openpgp.key.readArmored(key);
+                    uid = pubkey.keys[0].getPrimaryUser().user.userId.userid;
+                    viewModel.name(uid.match('(.*) \\(|<')[1]);
+                    viewModel.email(uid.match('.*<(.*)>')[1]);
+                    if (uid.match('.*\\((.*)\\)')) {
+                        viewModel.comment(uid.match('.*\\((.*)\\)')[1]);
+                    }
+                    verify_message(message, pubkey.keys)
+                });
+            };
+
+            ko.applyBindings(viewModel);
+        })();
+    </script>
+
+    </body>
+</html>

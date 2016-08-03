@@ -1,14 +1,18 @@
 import os
 import random
+import json
+import datetime
 from functools import wraps
 
 from flask import (
     redirect,
     render_template,
+    make_response,
     request,
     Response,
     send_from_directory,
     session,
+    jsonify,
 )
 from werkzeug import secure_filename
 from oath import GoogleAuthenticator
@@ -96,12 +100,25 @@ def index():
 @app.route('/code/<url_id>')
 @app.route('/c/<url_id>')
 def render_code_snippet(url_id):
+    url_parts = url_id.split('.')
+    url_id = url_parts[0]
+    file_format = None
+    if len(url_parts) > 1:
+        file_format = url_parts[-1].lower()
     redirect_obj = DBSession.query(Snippet).filter(Snippet.alias == url_id).first()
     if redirect_obj:
         redirect_obj.views += 1
         DBSession.add(redirect_obj)
         DBSession.commit()
-        return render_template('snippet.html', code=redirect_obj)
+        if file_format:
+            if file_format in ['txt']:
+                response = make_response(redirect_obj.content)
+                response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+                return response
+            elif file_format in ['asc', 'pgp', 'gpg']:
+                return render_template('gpg.html', code=redirect_obj)
+        else:
+            return render_template('snippet.html', code=redirect_obj)
     return not_found()
 
 
@@ -113,16 +130,120 @@ def return_uploaded_file(filename):
 
 @app.route('/<path:url_id>')
 def url_redirect(url_id):
+    extras = request.url.split('?')[1:]
+    print "{}: {}".format(request.environ['PATH_INFO'], request.environ['HTTP_X_FORWARDED_FOR'])
+    canned_responses = {
+    }
+    response = canned_responses.get(request.environ['HTTP_X_FORWARDED_FOR'])
+    if response:
+        return response
     url_id = url_id.split('.')[0]
     redirect_obj = DBSession.query(Url).filter(Url.alias == url_id).all()
-    redirect_obj = random.choice(redirect_obj)
     if redirect_obj:
+        redirect_obj = random.choice(redirect_obj)
+        location = redirect_obj.location
+        if extras:
+            if not extras[0].startswith('/'):
+                location += '/'
+            location += extras[0]
+        redirect_obj.views += 1
+        DBSession.add(redirect_obj)
+        DBSession.commit()
+        return redirect(location, code=302)
+    return not_found()
+
+
+@app.route('/info/<path:url_id>')
+@requires_auth
+def url_info(url_id):
+    url_id = url_id.split('.')[0]
+    info_obj = {}
+    print dir(request)
+    print request.environ['HTTP_X_REAL_IP']
+    print request.environ['HTTP_USER_AGENT']
+    print request.environ['PATH_INFO']
+    print request.environ['HTTP_COOKIE']
+    print request.environ.keys()
+    urls = DBSession.query(Url).filter(Url.alias == url_id).all()
+
+    info_obj['urls'] = []
+    for url in urls:
+        info_obj['urls'].append({
+            'id': url.id,
+            'created_at': url.created_at,
+            'alias': url.alias,
+            'location': url.location,
+            'views': url.views,
+        })
+    return jsonify(info_obj)
+    if redirect_obj:
+        redirect_obj = random.choice(redirect_obj)
         location = redirect_obj.location
         redirect_obj.views += 1
         DBSession.add(redirect_obj)
         DBSession.commit()
         return redirect(location, code=302)
     return not_found()
+
+
+@app.route('/admin/backup/')
+@requires_auth
+def backup():
+    urls = DBSession.query(Url).all()
+    snippets = DBSession.query(Snippet).all()
+    backup_obj = {
+        'urls': [],
+        'snippets': [],
+    }
+    for url in urls:
+        obj = {
+            'id': url.id,
+            'alias': url.alias,
+            'location': url.location,
+            'views': url.views,
+        }
+        if url.created_at:
+            obj['created_at'] = (url.created_at - datetime.datetime(1970, 1, 1)).total_seconds()
+        else:
+            obj['created_at'] = 0
+        backup_obj['urls'].append(obj)
+    for snippet in snippets:
+        obj = {
+            'id': snippet.id,
+            'alias': snippet.alias,
+            'title': snippet.title,
+            'content': snippet.content,
+            'views': snippet.views,
+        }
+        if snippet.created_at:
+            obj['created_at'] = (snippet.created_at - datetime.datetime(1970, 1, 1)).total_seconds()
+        else:
+            obj['created_at'] = 0
+        backup_obj['snippets'].append(obj)
+    return jsonify(backup_obj)
+
+
+@app.route('/admin/restore/', methods=['POST'])
+@requires_auth
+def restore():
+    payload = request.files['file']
+    payload = json.loads(payload.read())
+    db_entities = []
+    for url in payload['urls']:
+        u = Url(url['location'], url['alias'], url['views'])
+        for k, v in url.items():
+            setattr(u, k, v)
+        u.created_at = datetime.datetime.fromtimestamp(url['created_at'])
+        db_entities.append(u)
+    for snip in payload['snippets']:
+        s = Snippet(snip['content'], snip['title'], snip['alias'], snip['views'])
+        for k, v in snip.items():
+            setattr(s, k, v)
+        s.created_at = datetime.datetime.fromtimestamp(snip['created_at'])
+        db_entities.append(s)
+    DBSession.add_all(db_entities)
+    DBSession.commit()
+    return redirect('/admin/', code=302)
 
 
 @app.route('/admin/')
@@ -198,9 +319,10 @@ def create_url(longurl, shorturl=None, creator=None, overwrite=None):
     shrl = Url(longurl)
     if shorturl:
         if overwrite:
-            obj = DBSession.query(Url).filter(Url.alias == shorturl).first()
+            obj = DBSession.query(Url).filter(Url.alias == shorturl).all()
             if obj:
-                DBSession.delete(obj)
+                for o in obj:
+                    DBSession.delete(o)
                 DBSession.commit()
         shrl.alias = shorturl
     if creator:
@@ -216,7 +338,7 @@ def render_url():
     creator = request.args.get('c')
     longurl = request.args.get('u')
     shortid = request.args.get('s')
-    overwrite = request.args.get('o', False)
+    overwrite = str(request.args.get('o', False)).lower() == 'true'
     url_only = request.args.get('url_only')
 
     if overwrite and not session['admin']:

@@ -4,9 +4,32 @@
         <meta charset="UTF-8">
         <title>Code snippet</title>
         <link rel="stylesheet" href="/static/styles/github-gist.css">
+        <script src="/static/jquery.min.js"></script>
         <script src="/static/highlight.pack.js"></script>
         <script>
             hljs.initHighlightingOnLoad();
+            $(document).ready(function() {
+                msg = $('code').text();
+                if (msg.match('BEGIN PGP SIGNED MESSAGE') || msg.match('BEGIN PGP SIGNED MESSAGE')) {
+                    link = $("<a></a>");
+                    link.text("This snippet looks like it contains a PGP signed message. Click here to verify the signature.");
+                    link.attr('href', document.location.href + ".asc");
+                    link.css({
+                        color: "#212121",
+                        display: "block",
+                        padding: "15px",
+                    });
+                    warning = $("<p></p>");
+                    warning.append(link)
+                    warning.css({
+                        color: "#212121",
+                        fontSize: "large",
+                        backgroundColor: "#ffc107",
+                        fontFamily: "sans-serif",
+                    });
+                    $("body").prepend(warning);
+                }
+            });
         </script>
     </head>
     <body>

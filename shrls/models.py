@@ -5,7 +5,7 @@ import datetime
 from shrls import app
 
 from sqlalchemy import create_engine
-from sqlalchemy import Column, Integer, Text, DateTime
+from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -45,7 +45,7 @@ class Url(Base):
     __tablename__ = 'urls'
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime)
-    alias = Column(Text, index=True)
+    alias = Column(Text)
     location = Column(Text)
     views = Column(Integer)
 
