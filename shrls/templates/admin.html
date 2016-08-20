@@ -5,11 +5,15 @@
         <title>SHRLS Admin Page</title>
         <link rel="stylesheet" href="/static/bootstrap.min.css" />
         <link rel="stylesheet" href="/static/bootstrap-responsive.min.css" />
+        <link rel="stylesheet" href="/static/styles/bootstrap-tagsinput.css" />
         <link rel="stylesheet" href="/static/dropzone.css" />
 
         <style type='text/css'>
             body {
                 padding-top: 10px;
+            }
+            .bootstrap-tagsinput {
+                width: 150px;
             }
         </style>
 
@@ -17,6 +21,8 @@
     <body>
         <script src="/static/dropzone.js"></script>
         <script src="/static/jquery.min.js"></script>
+        <script src="/static/bootstrap-tagsinput.min.js"></script>
+        <script src="/static/typeahead.bundle.min.js"></script>
         <script type='text/javascript'>
             function upload_snippet() {
                 content = $('#content').val();
@@ -132,6 +138,9 @@
                             Created
                         </th>
                         <th>
+                            Tags
+                        </th>
+                        <th>
                             Actions
                         </th>
                     </tr>
@@ -147,6 +156,9 @@
                     </td>
                     <td>{{ url.views }}</td>
                     <td>{{ url.created_at }}</td>
+                    <td>
+                        <input type="text" class='shrl-tags' data-role="tagsinput"/>
+                    </td>
                     <td>
                         <a href='#' onclick="$('#shrl_url').val('{{ url.location }}');$('#shrl_short').val('{{ url.alias }}');$('#shrl_overwrite').attr('checked', 'checked');">Update</a>
                     </td>

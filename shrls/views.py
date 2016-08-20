@@ -246,6 +246,77 @@ def restore():
     return redirect('/admin/', code=302)
 
 
+
+@app.route('/admin/api/shrls')
+@requires_auth
+def get_shrls_api():
+    page = int(request.args.get('page', 0))
+    count = int(request.args.get('count', 50))
+    urls = DBSession.query(Url)
+
+    order_by = request.args.get('order_by')
+    sort_by = request.args.get('sort')
+    if not order_by or order_by.lower() not in ['id', 'created_at', 'alias', 'views', 'location']:
+        order_by = 'created_at'
+    if not sort_by or sort_by.lower() not in ['asc', 'desc']:
+        sort_by = 'desc'
+    order_by = order_by.lower()
+    sort_by = sort_by.lower()
+
+    urls = urls.order_by(getattr(getattr(Url, order_by), sort_by)())
+
+    include = request.args.getlist('include')
+    exclude = request.args.getlist('exclude')
+    searches = request.args.getlist('search')
+
+    t = {
+        '+': include,
+        '-': exclude,
+    }
+    searches = [[word for word in x.split(' ') if word] for x in searches if x]
+    for search in searches:
+        mode = '+'
+        phrase = []
+        for word in search:
+            if word and word[0] in ['-', '+']:
+                if phrase:
+                    t[mode].append(' '.join(phrase))
+                phrase = []
+                mode = word[0]
+                word = word[1:]
+            if word:
+                phrase.append(word)
+        t[mode].append(' '.join(phrase))
+
+    for f in include:
+        urls = urls.filter(or_(
+            Url.alias.ilike("%{}%".format(f)),
+            Url.location.ilike("%{}%".format(f)),
+        ))
+
+    for f in exclude:
+        urls = urls.filter(not_(
+            or_(
+                Url.alias.ilike("%{}%".format(f)),
+                Url.location.ilike("%{}%".format(f)),
+            )
+        ))
+
+    urls = urls.offset(page * count)
+    urls = urls.limit(count)
+
+    urls = urls.all()
+    print urls[0].tags
+    final = {'urls': [{
+        'id': x.id,
+        'shrl': x.alias,
+        'url': x.location,
+        'views': x.views,
+        'tags': x.tags
+    } for x in urls]}
+    return jsonify(final)
+
+
 @app.route('/admin/')
 @requires_auth
 def admin_index():

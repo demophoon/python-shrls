@@ -5,8 +5,8 @@ import datetime
 from shrls import app
 
 from sqlalchemy import create_engine
-from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy import Table, Column, Integer, Text, DateTime, ForeignKey
+from sqlalchemy.orm import scoped_session, sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 allowed_shortner_chars = string.ascii_letters + string.digits
@@ -41,6 +41,33 @@ def create_short_url():
     return alias
 
 
+# Tags to Urls Association Table
+tags_to_urls_table = Table(
+    'tags_to_urls', Base.metadata,
+    Column('tag_id', Integer, ForeignKey('tags.id')),
+    Column('url_id', Integer, ForeignKey('urls.id')),
+)
+
+
+class Tag(Base):
+    __tablename__ = 'tags'
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime)
+    name = Column(Text)
+    urls = relationship("Url", secondary=tags_to_urls_table, back_populates="tags")
+
+    def __init__(self, location, alias=None, views=0):
+        if not(alias):
+            alias = create_short_url()
+        self.alias = alias
+        self.location = location
+        self.views = views
+        self.created_at = datetime.datetime.now()
+
+    def __repr__(self):
+        return str(self.alias) + ", " + str(self.location) + ", " + str(self.views)
+
+
 class Url(Base):
     __tablename__ = 'urls'
     id = Column(Integer, primary_key=True)
@@ -48,6 +75,7 @@ class Url(Base):
     alias = Column(Text)
     location = Column(Text)
     views = Column(Integer)
+    tags = relationship("Tag", secondary=tags_to_urls_table, back_populates="urls")
 
     def __init__(self, location, alias=None, views=0):
         if not(alias):
