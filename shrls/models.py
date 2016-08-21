@@ -56,16 +56,12 @@ class Tag(Base):
     name = Column(Text)
     urls = relationship("Url", secondary=tags_to_urls_table, back_populates="tags")
 
-    def __init__(self, location, alias=None, views=0):
-        if not(alias):
-            alias = create_short_url()
-        self.alias = alias
-        self.location = location
-        self.views = views
+    def __init__(self, name):
+        self.name = name
         self.created_at = datetime.datetime.now()
 
     def __repr__(self):
-        return str(self.alias) + ", " + str(self.location) + ", " + str(self.views)
+        return str(self.name)
 
 
 class Url(Base):

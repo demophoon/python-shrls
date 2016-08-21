@@ -21,6 +21,7 @@ from shrls import app
 from shrls.models import (
     DBSession,
     Url,
+    Tag,
     Snippet,
     allowed_shortner_chars,
 )
@@ -206,6 +207,7 @@ def backup():
             obj['created_at'] = (url.created_at - datetime.datetime(1970, 1, 1)).total_seconds()
         else:
             obj['created_at'] = 0
+        obj['tags'] = [x.name for x in url.tags]
         backup_obj['urls'].append(obj)
     for snippet in snippets:
         obj = {
@@ -265,20 +267,20 @@ def get_shrls_api():
 
     urls = urls.order_by(getattr(getattr(Url, order_by), sort_by)())
 
-    include = request.args.getlist('include')
-    exclude = request.args.getlist('exclude')
     searches = request.args.getlist('search')
 
     t = {
-        '+': include,
-        '-': exclude,
+        '+': [],
+        '-': [],
+        '#': [],
     }
+
     searches = [[word for word in x.split(' ') if word] for x in searches if x]
     for search in searches:
         mode = '+'
         phrase = []
         for word in search:
-            if word and word[0] in ['-', '+']:
+            if word and word[0] in t.keys():
                 if phrase:
                     t[mode].append(' '.join(phrase))
                 phrase = []
@@ -288,113 +290,63 @@ def get_shrls_api():
                 phrase.append(word)
         t[mode].append(' '.join(phrase))
 
-    for f in include:
+    for f in t['#']:
+        urls = urls.filter(
+            Url.tags.any(Tag.name.ilike("%{}%".format(f)))
+        )
+
+    for f in t['+']:
         urls = urls.filter(or_(
             Url.alias.ilike("%{}%".format(f)),
             Url.location.ilike("%{}%".format(f)),
+            Url.tags.any(Tag.name.ilike("%{}%".format(f))),
         ))
 
-    for f in exclude:
-        urls = urls.filter(not_(
-            or_(
-                Url.alias.ilike("%{}%".format(f)),
-                Url.location.ilike("%{}%".format(f)),
-            )
-        ))
+    for f in t['-']:
+        urls = urls.filter(not_(or_(
+            Url.alias.ilike("%{}%".format(f)),
+            Url.location.ilike("%{}%".format(f)),
+        )))
 
     urls = urls.offset(page * count)
     urls = urls.limit(count)
 
     urls = urls.all()
-    print urls[0].tags
     final = {'urls': [{
         'id': x.id,
-        'shrl': x.alias,
-        'url': x.location,
+        'alias': x.alias,
+        'location': x.location,
         'views': x.views,
-        'tags': x.tags
+        'tags': [t.name for t in x.tags],
     } for x in urls]}
+
     return jsonify(final)
 
 
 @app.route('/admin/')
 @requires_auth
 def admin_index():
-    page = int(request.args.get('page', 0))
-    count = int(request.args.get('count', 50))
-    urls = DBSession.query(Url)
-
-    order_by = request.args.get('order_by')
-    sort_by = request.args.get('sort')
-    if not order_by or order_by.lower() not in ['id', 'created_at', 'alias', 'views', 'location']:
-        order_by = 'created_at'
-    if not sort_by or sort_by.lower() not in ['asc', 'desc']:
-        sort_by = 'desc'
-    order_by = order_by.lower()
-    sort_by = sort_by.lower()
-
-    urls = urls.order_by(getattr(getattr(Url, order_by), sort_by)())
-
-    include = request.args.getlist('include')
-    exclude = request.args.getlist('exclude')
-    searches = request.args.getlist('search')
-
-    t = {
-        '+': include,
-        '-': exclude,
-    }
-    searches = [[word for word in x.split(' ') if word] for x in searches if x]
-    for search in searches:
-        mode = '+'
-        phrase = []
-        for word in search:
-            if word and word[0] in ['-', '+']:
-                if phrase:
-                    t[mode].append(' '.join(phrase))
-                phrase = []
-                mode = word[0]
-                word = word[1:]
-            if word:
-                phrase.append(word)
-        t[mode].append(' '.join(phrase))
-
-    for f in include:
-        urls = urls.filter(or_(
-            Url.alias.ilike("%{}%".format(f)),
-            Url.location.ilike("%{}%".format(f)),
-        ))
-
-    for f in exclude:
-        urls = urls.filter(not_(
-            or_(
-                Url.alias.ilike("%{}%".format(f)),
-                Url.location.ilike("%{}%".format(f)),
-            )
-        ))
-
-    urls = urls.all()
-
-    urlparams = []
-    for k, v in request.args.iteritems():
-        if k in ['page', 'order_by', 'sort']:
-            continue
-        urlparams.append("{}={}".format(k, v))
-    params = "?{}".format("&".join(urlparams))
-    if urlparams:
-        params += "&"
-    searches = ' '.join([' '.join(x) for x in searches])
-    return render_template('admin.html', urls=urls, page=page, count=count, params=params, search=searches)
+    return render_template('admin.html')
 
 
-def create_url(longurl, shorturl=None, creator=None, overwrite=None):
-    shrl = Url(longurl)
+def create_url(longurl, shorturl=None, creator=None, shrl_id=None, tags=None):
+    ftags = []
+    if tags:
+        for tag in tags:
+            tag_obj = DBSession.query(Tag).filter(Tag.name == tag).first()
+            if not tag_obj:
+                tag_obj = Tag(tag)
+                DBSession.add(tag_obj)
+            ftags.append(tag_obj)
+
+    shrl = None
+    if shrl_id:
+        shrl = DBSession.query(Url).filter(Url.id == shrl_id).first()
+    if not shrl:
+        shrl = Url(longurl)
+    shrl.location = longurl
+    shrl.tags = ftags
     if shorturl:
-        if overwrite:
-            obj = DBSession.query(Url).filter(Url.alias == shorturl).all()
-            if obj:
-                for o in obj:
-                    DBSession.delete(o)
-                DBSession.commit()
         shrl.alias = shorturl
     if creator:
         shrl.alias = "{}/{}".format(creator, shrl.alias)
@@ -403,21 +355,71 @@ def create_url(longurl, shorturl=None, creator=None, overwrite=None):
     return '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
 
 
+@app.route('/admin/api/tags', methods=['GET'])
+@requires_auth
+def get_tags():
+    tags = DBSession.query(Tag).all()
+    return jsonify({
+        'tags': [x.name for x in tags],
+    })
+
+
+@app.route('/admin/api/shrls', methods=['DELETE'])
+@requires_auth
+def delete_shrl():
+    shrl_id = request.form.get('id')
+    obj = DBSession.query(Url).filter(Url.id == int(shrl_id)).first()
+    DBSession.delete(obj)
+    DBSession.commit()
+    return jsonify({
+        'status': 'success',
+        'id': shrl_id,
+    })
+
+
+@app.route('/admin/api/shrls', methods=['POST'])
+@requires_auth
+def post_shrl():
+    creator = request.form.get('user')
+    longurl = request.form.get('location')
+    alias = request.form.get('alias')
+    shrl_id = request.form.get('id')
+    tags = request.form.getlist('tags[]')
+
+    if shrl_id:
+        shrl_id = int(shrl_id)
+
+    url = create_url(longurl, shorturl=alias, creator=creator, shrl_id=shrl_id, tags=tags)
+    return jsonify({
+        'status': 'success',
+        'url': url,
+        'creator': creator,
+        'longurl': longurl,
+        'alias': alias,
+        'shrl_id': shrl_id,
+        'tags': tags,
+    })
+
+
+
 @app.route('/admin/create', methods=['GET'])
 @requires_auth
 def render_url():
     creator = request.args.get('c')
     longurl = request.args.get('u')
     shortid = request.args.get('s')
+    tags = request.args.getlist('t')
     overwrite = str(request.args.get('o', False)).lower() == 'true'
     url_only = request.args.get('url_only')
+    if creator:
+        tags.append(creator)
 
     if overwrite and not session['admin']:
         return "prompt('You do not have permission to overwrite existing urls.')"
 
     if not(longurl):
         return "prompt('No url specified.')"
-    alias = create_url(longurl, shorturl=shortid, creator=creator, overwrite=overwrite)
+    alias = create_url(longurl, shorturl=shortid, creator=creator, tags=tags)
     if url_only:
         return alias
     else:

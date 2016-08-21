@@ -13,7 +13,21 @@
                 padding-top: 10px;
             }
             .bootstrap-tagsinput {
+                width: 250px;
+            }
+            .shrl_overflow {
+                padding: 0px;
+                margin: 0px;
                 width: 150px;
+                text-overflow: ellipsis;
+                overflow: hidden;
+                white-space: nowrap;
+            }
+            .url_overflow {
+                width: 200px;
+                text-overflow: ellipsis;
+                overflow: hidden;
+                white-space: nowrap;
             }
         </style>
 
@@ -21,9 +35,143 @@
     <body>
         <script src="/static/dropzone.js"></script>
         <script src="/static/jquery.min.js"></script>
-        <script src="/static/bootstrap-tagsinput.min.js"></script>
         <script src="/static/typeahead.bundle.min.js"></script>
+        <script src="/static/bootstrap-tagsinput.min.js"></script>
+        <script src="/static/knockout-min.js"></script>
+
         <script type='text/javascript'>
+
+            ko.bindingHandlers.tags = {
+                init: function(element, valueAccessor, allBindings, bindingContext) {
+                    $(element).tagsinput({
+                        trimValue: true,
+                        confirmKeys: [13],
+                        itemText: function(item) {
+                            item = item.replace(/^#+/, '');
+                            return "#" + item;
+                        }
+                    });
+
+                    var values = ko.unwrap(valueAccessor());
+
+                    for (var i=0; i<values.length; i++) {
+                        $(element).tagsinput('add', values[i]);
+                    }
+
+                    var modifiedHandler = function(value) {
+                        return function() {
+                            var tags = $(this).tagsinput('items').map(function(item) { return item.replace(/^#+/, ''); });
+                            value(tags);
+                            bindingContext.update();
+                        }
+                    }(valueAccessor());
+
+                    $(element).on('itemAdded', modifiedHandler);
+                    $(element).on('itemRemoved', modifiedHandler);
+                },
+            }
+
+            var Url = function(url) {
+                var self = this;
+                self.id = url.id;
+                self.alias = ko.observable(url.alias);
+                self.location = ko.observable(url.location);
+                self.views = ko.observable(url.views);
+                self.tags = ko.observableArray(url.tags);
+
+                self.href = ko.computed(function() {
+                    return '/' + self.alias();
+                }, self);
+
+                self.update = function() {
+                    $.ajax({
+                        url: '/admin/api/shrls',
+                        method: 'POST',
+                        data: {
+                            id: self.id,
+                            alias: self.alias(),
+                            location: self.location(),
+                            tags: self.tags(),
+                        },
+                        success: function(data) {
+                            retrieveUrls();
+                        }
+                    });
+                }
+
+                self.delete_shrl = function() {
+                    $.ajax({
+                        url: '/admin/api/shrls',
+                        method: 'DELETE',
+                        data: {
+                            id: self.id,
+                        },
+                        success: function(data) {
+                            retrieveUrls();
+                        }
+                    });
+                }
+
+            }
+
+            var ViewModel = function() {
+                var self = this;
+
+                self.urls = ko.observableArray(),
+                self.search = ko.observable(),
+                self.control = {
+                    page: ko.observable(0),
+                    count: ko.observable(50),
+                    nextPage: function() {
+                        self.control.page(self.control.page() + 1);
+                        retrieveUrls();
+                    },
+                    prevPage: function() {
+                        self.control.page(Math.max(0, self.control.page() - 1));
+                        retrieveUrls();
+                    },
+                }
+
+                self.submitQuery = function() {
+                    self.control.page(0);
+                    retrieveUrls();
+                }
+            }
+
+            var viewModel = new ViewModel();
+
+            var urls = [];
+
+
+            function getUrl(url) {
+                result = viewModel.urls().find(function(item) { return item.id == url.id; });
+                if (result == undefined) {
+                    result = new Url(url);
+                }
+                return result;
+            }
+
+            function retrieveUrls() {
+                $.ajax({
+                    url: '/admin/api/shrls',
+                    dataType: 'json',
+                    data: {
+                        page: viewModel.control.page(),
+                        count: viewModel.control.count(),
+                        search: viewModel.search(),
+                    },
+                    success: function(data) {
+                        viewModel.urls(data.urls.map(function(item) { return getUrl(item); }));
+                    },
+                });
+            }
+
+            $(document).ready(function() {
+                retrieveUrls();
+                setInterval(retrieveUrls, 30000);
+                ko.applyBindings(viewModel);
+            });
+
             function upload_snippet() {
                 content = $('#content').val();
                 title = $('#title').val();
@@ -90,8 +238,8 @@
                     <a class="brand" href="/admin/">SHRLS Admin</a>
                     <ul class="nav">
                     </ul>
-                    <form action='/admin/' class='navbar-search pull-right' method='get'>
-                        <input type='text' class='search-query' value='{{ search }}' placeholder='Search' name='search' />
+                    <form data-bind='submit: submitQuery' class='navbar-search pull-right'>
+                        <input type='text' class='search-query' data-bind='value: search' placeholder='Search' name='search' />
                     </form>
                 </div>
             </div>
@@ -125,17 +273,14 @@
             <table class="table table-condensed table-striped table-hover">
                 <thead>
                     <tr>
-                        <th>
-                            <a href='/admin/{{ params }}page={{ page }}&order_by=alias'>Short Url</a>
+                        <th class='shrl_overflow'>
+                            Short Url
                         </th>
-                        <th>
-                            <a href='/admin/{{ params }}page={{ page }}&order_by=location'>Location</a>
+                        <th class='url_overflow'>
+                            Location
                         </th>
                         <th>
                             Views
-                        </th>
-                        <th>
-                            Created
                         </th>
                         <th>
                             Tags
@@ -145,33 +290,31 @@
                         </th>
                     </tr>
                 </thead>
-                <tbody>
-                {% for url in urls[(page * count):((page + 1) * count)] %}
+                <tbody data-bind='foreach: urls' data-bind='foreach: urls'>
                 <tr>
                     <td>
-                        <a target="_blank" href='/{{ url.alias }}'>{{ url.alias[:20] }}</a>
+                        <div class='shrl_overflow'>
+                            <a target="_blank" data-bind='attr: { href: href }, text: alias'></a>
+                        </div>
                     </td>
                     <td>
-                        <a target="_blank" href='{{ url.location }}'>{{ url.location[:50] }}</a>
+                        <div class='url_overflow'>
+                            <a target="_blank" data-bind='attr: { href: location }, text: location'></a>
+                        </div>
                     </td>
-                    <td>{{ url.views }}</td>
-                    <td>{{ url.created_at }}</td>
+                    <td data-bind='text: views'></td>
                     <td>
-                        <input type="text" class='shrl-tags' data-role="tagsinput"/>
+                        <span data-bind='tags: tags'></span>
                     </td>
                     <td>
-                        <a href='#' onclick="$('#shrl_url').val('{{ url.location }}');$('#shrl_short').val('{{ url.alias }}');$('#shrl_overwrite').attr('checked', 'checked');">Update</a>
+                        <a href='#' data-bind="click: update">Update</a>
+                        <a href='#' data-bind="click: delete_shrl">Delete</a>
                     </td>
                 </tr>
-                {% endfor %}
                 </tbody>
             </table>
-            <a href='/admin/{{ params }}page={{ page - 1 }}'>
-                <input class='btn' type='button' class='button' value='Previous Page' name='' />
-            </a>
-            <a href='/admin/{{ params }}page={{ page + 1 }}'>
-                <input class='btn' type='button' class='button' value='Next Page' name='' />
-            </a>
+            <input class='btn' type='button' class='button' value='Previous Page' data-bind='click: control.prevPage' name='' />
+            <input class='btn' type='button' class='button' value='Next Page' data-bind='click: control.nextPage' name='' />
         </div>
 
         <hr>
