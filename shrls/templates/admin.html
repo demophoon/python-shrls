@@ -13,18 +13,19 @@
                 padding-top: 10px;
             }
             .bootstrap-tagsinput {
+                background-color: inherit;
+                border: none;
+                box-shadow: none;
+                width: 250px;
+                padding: 2px 6px;
+                white-space: nowrap;
+            }
+            .bootstrap-tagsinput input {
                 width: 250px;
             }
             .shrl_overflow {
                 padding: 0px;
                 margin: 0px;
-                width: 150px;
-                text-overflow: ellipsis;
-                overflow: hidden;
-                white-space: nowrap;
-            }
-            .url_overflow {
-                width: 200px;
                 text-overflow: ellipsis;
                 overflow: hidden;
                 white-space: nowrap;
@@ -35,9 +36,9 @@
     <body>
         <script src="/static/dropzone.js"></script>
         <script src="/static/jquery.min.js"></script>
-        <script src="/static/typeahead.bundle.min.js"></script>
-        <script src="/static/bootstrap-tagsinput.min.js"></script>
         <script src="/static/knockout-min.js"></script>
+        <script src="/static/bootstrap.min.js"></script>
+        <script src="/static/bootstrap-tagsinput.min.js"></script>
 
         <script type='text/javascript'>
 
@@ -49,7 +50,12 @@
                         itemText: function(item) {
                             item = item.replace(/^#+/, '');
                             return "#" + item;
-                        }
+                        },
+                        //typeahead: {
+                        //    source: function(query) {
+                        //        return viewModel.tags();
+                        //    },
+                        //},
                     });
 
                     var values = ko.unwrap(valueAccessor());
@@ -118,6 +124,7 @@
                 var self = this;
 
                 self.urls = ko.observableArray(),
+                self.tags = ko.observableArray(),
                 self.search = ko.observable(),
                 self.control = {
                     page: ko.observable(0),
@@ -166,8 +173,20 @@
                 });
             }
 
+            function retrieveTags(search) {
+                $.ajax({
+                    url: '/admin/api/tags',
+                    dataType: 'json',
+                    data: {search: search},
+                    success: function(data) {
+                        viewModel.tags(data.tags);
+                    },
+                });
+            }
+
             $(document).ready(function() {
                 retrieveUrls();
+                retrieveTags();
                 setInterval(retrieveUrls, 30000);
                 ko.applyBindings(viewModel);
             });
@@ -270,17 +289,17 @@
                 <input class='span2 input btn pull-right' onclick='create_shrl()' type='button' class='button' value='Create Url' name='' />
             </div>
 
+            <input class='btn' type='button' class='button' value='Previous Page' data-bind='click: control.prevPage' name='' />
+            <input class='btn' type='button' class='button' value='Next Page' data-bind='click: control.nextPage' name='' />
+
             <table class="table table-condensed table-striped table-hover">
                 <thead>
                     <tr>
-                        <th class='shrl_overflow'>
-                            Short Url
-                        </th>
-                        <th class='url_overflow'>
-                            Location
-                        </th>
-                        <th>
+                        <th class='span1'>
                             Views
+                        </th>
+                        <th class='shrl_overflow span4'>
+                            Url
                         </th>
                         <th>
                             Tags
@@ -292,22 +311,22 @@
                 </thead>
                 <tbody data-bind='foreach: urls' data-bind='foreach: urls'>
                 <tr>
+                    <td data-bind='text: views' class='span1'></td>
                     <td>
-                        <div class='shrl_overflow'>
-                            <a target="_blank" data-bind='attr: { href: href }, text: alias'></a>
+                        <div class='shrl_overflow span4'>
+                            <b>
+                                <a target="_blank" data-bind='attr: { href: href }, text: alias'></a>
+                            </b>
+                            <br>
+                            <small>
+                                <a target="_blank" data-bind='attr: { href: location }, text: location'></a>
+                            </small>
                         </div>
                     </td>
                     <td>
-                        <div class='url_overflow'>
-                            <a target="_blank" data-bind='attr: { href: location }, text: location'></a>
-                        </div>
-                    </td>
-                    <td data-bind='text: views'></td>
-                    <td>
-                        <span data-bind='tags: tags'></span>
+                        <span data-bind='tags: tags' class='span4'></span>
                     </td>
                     <td>
-                        <a href='#' data-bind="click: update">Update</a>
                         <a href='#' data-bind="click: delete_shrl">Delete</a>
                     </td>
                 </tr>
