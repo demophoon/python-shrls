@@ -129,6 +129,35 @@ def return_uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
+def remove_extra_redirects(original_url):
+    if not original_url.startswith(app.config['shrls_base_url']):
+        return original_url
+    url = original_url[(len(app.config['shrls_base_url']) + 1):]
+    urls = DBSession.query(Url).filter(Url.alias == url).all()
+    if not urls:
+        return original_url
+    url = random.choice(urls)
+    url.views += 1
+    DBSession.add(url)
+    DBSession.commit()
+    return remove_extra_redirects(url.location)
+
+
+@app.route('/t/<path:tagname>')
+def return_tagged_url(tagname):
+    tag = DBSession.query(Tag).filter(Tag.name == tagname).first()
+    if not tag:
+        return not_found()
+    urls = tag.urls
+    if not urls:
+        return not_found()
+
+    url = random.choice(urls)
+    location = '{}/{}'.format(app.config['shrls_base_url'], url.alias)
+    location = remove_extra_redirects(location)
+    return redirect(location, code=302)
+
+
 @app.route('/<path:url_id>')
 def url_redirect(url_id):
     extras = request.url.split('?')[1:]
@@ -273,6 +302,7 @@ def get_shrls_api():
         '+': [],
         '-': [],
         '#': [],
+        '/': [],
     }
 
     searches = [[word for word in x.split(' ') if word] for x in searches if x]
@@ -289,6 +319,12 @@ def get_shrls_api():
             if word:
                 phrase.append(word)
         t[mode].append(' '.join(phrase))
+
+    for f in t['/']:
+        urls = urls.filter(or_(
+            Url.alias.ilike("{}%".format(f)),
+            Url.location.ilike("%/{}%".format(f)),
+        ))
 
     for f in t['#']:
         urls = urls.filter(
@@ -344,14 +380,17 @@ def create_url(longurl, shorturl=None, creator=None, shrl_id=None, tags=None):
         shrl = DBSession.query(Url).filter(Url.id == shrl_id).first()
     if not shrl:
         shrl = Url(longurl)
-    shrl.location = longurl
-    shrl.tags = ftags
+    if longurl:
+        shrl.location = longurl
+    if ftags:
+        shrl.tags = ftags
     if shorturl:
         shrl.alias = shorturl
     if creator:
         shrl.alias = "{}/{}".format(creator, shrl.alias)
     DBSession.add(shrl)
     DBSession.commit()
+    return shrl
     return '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
 
 
@@ -389,15 +428,18 @@ def post_shrl():
     if shrl_id:
         shrl_id = int(shrl_id)
 
-    url = create_url(longurl, shorturl=alias, creator=creator, shrl_id=shrl_id, tags=tags)
+    shrl = create_url(longurl, shorturl=alias, creator=creator, shrl_id=shrl_id, tags=tags)
+    alias = '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
     return jsonify({
         'status': 'success',
-        'url': url,
-        'creator': creator,
-        'longurl': longurl,
-        'alias': alias,
-        'shrl_id': shrl_id,
-        'tags': tags,
+        'url': alias,
+        'shrl': {
+            'id': shrl.id,
+            'alias': shrl.alias,
+            'location': shrl.location,
+            'views': shrl.views,
+            'tags': [t.name for t in shrl.tags],
+        },
     })
 
 
@@ -419,7 +461,9 @@ def render_url():
 
     if not(longurl):
         return "prompt('No url specified.')"
-    alias = create_url(longurl, shorturl=shortid, creator=creator, tags=tags)
+    shrl = create_url(longurl, shorturl=shortid, creator=creator, tags=tags)
+    alias = '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
+
     if url_only:
         return alias
     else:
@@ -445,7 +489,8 @@ def create_snippet():
     DBSession.add(shrl)
     DBSession.commit()
     alias = '{}/c/{}'.format(app.config['shrls_base_url'], shrl.alias)
-    alias = create_url(alias)
+    shrl = create_url(alias)
+    alias = '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
     return alias
 
 
@@ -470,5 +515,6 @@ def upload_file():
         filename)
     )
     alias = "{}/u/{}".format(app.config['shrls_base_url'], filename)
-    alias = create_url(alias, shorturl=save_as)
+    shrl = create_url(alias, shorturl=save_as)
+    alias = '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
     return alias

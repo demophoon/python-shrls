@@ -3,8 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>SHRLS Admin Page</title>
-        <link rel="stylesheet" href="/static/bootstrap.min.css" />
-        <link rel="stylesheet" href="/static/bootstrap-responsive.min.css" />
+        <link rel="stylesheet" href="/static/styles/bootstrap.min.css" />
         <link rel="stylesheet" href="/static/styles/bootstrap-tagsinput.css" />
         <link rel="stylesheet" href="/static/dropzone.css" />
 
@@ -16,19 +15,26 @@
                 background-color: inherit;
                 border: none;
                 box-shadow: none;
-                width: 250px;
-                padding: 2px 6px;
+                width: 100%;
+                height: 100%;
+                padding: 0px;
                 white-space: nowrap;
             }
             .bootstrap-tagsinput input {
-                width: 250px;
+                width: 100%;
             }
             .shrl_overflow {
+                width: 250px;
                 padding: 0px;
                 margin: 0px;
                 text-overflow: ellipsis;
                 overflow: hidden;
                 white-space: nowrap;
+            }
+            .label {
+                font-size: 12px;
+                padding: 2px 0px 2px 2px;
+                margin: 0px;
             }
         </style>
 
@@ -38,9 +44,22 @@
         <script src="/static/jquery.min.js"></script>
         <script src="/static/knockout-min.js"></script>
         <script src="/static/bootstrap.min.js"></script>
+        <script src="/static/bootstrap3-typeahead.min.js"></script>
         <script src="/static/bootstrap-tagsinput.min.js"></script>
+        <script src="/static/clipboard.min.js"></script>
 
         <script type='text/javascript'>
+
+            ko.bindingHandlers.clipboard = {
+                init: function(element, valueAccessor, allBindings, bindingContext) {
+                    var value = ko.unwrap(valueAccessor());
+                    clipboard = new Clipboard(element, {
+                        text: function(trigger) {
+                            return value;
+                        }
+                    });
+                },
+            }
 
             ko.bindingHandlers.tags = {
                 init: function(element, valueAccessor, allBindings, bindingContext) {
@@ -51,12 +70,16 @@
                             item = item.replace(/^#+/, '');
                             return "#" + item;
                         },
+                        tagClass: function(item) {
+                            return 'tag label label-default';
+                        }
                         //typeahead: {
                         //    source: function(query) {
                         //        return viewModel.tags();
                         //    },
                         //},
                     });
+
 
                     var values = ko.unwrap(valueAccessor());
 
@@ -68,7 +91,7 @@
                         return function() {
                             var tags = $(this).tagsinput('items').map(function(item) { return item.replace(/^#+/, ''); });
                             value(tags);
-                            bindingContext.update();
+                            bindingContext.updateTags();
                         }
                     }(valueAccessor());
 
@@ -79,25 +102,76 @@
 
             var Url = function(url) {
                 var self = this;
-                self.id = url.id;
-                self.alias = ko.observable(url.alias);
-                self.location = ko.observable(url.location);
-                self.views = ko.observable(url.views);
-                self.tags = ko.observableArray(url.tags);
+                self.id = ko.observable();
+                self.alias = ko.observable();
+                self.location = ko.observable();
+                self.views = ko.observable();
+                self.tags = ko.observableArray();
+
+                self.init = function(url) {
+                    self.id(url.id)
+                    self.alias(url.alias);
+                    self.location(url.location);
+                    self.views(url.views);
+                    self.tags(url.tags);
+                }
+                if (url != undefined) {
+                    self.init(url);
+                }
 
                 self.href = ko.computed(function() {
-                    return '/' + self.alias();
+                    return document.location.origin + '/' + self.alias();
                 }, self);
 
-                self.update = function() {
+                self.updateTags = function() {
+                    if (self.id() == undefined) { return; }
                     $.ajax({
                         url: '/admin/api/shrls',
                         method: 'POST',
                         data: {
-                            id: self.id,
+                            id: self.id(),
+                            tags: self.tags(),
+                        },
+                        success: function(data) { }
+                    });
+                }
+
+                self.update = function() {
+                    var req = {}
+                    $.ajax({
+                        url: '/admin/api/shrls',
+                        method: 'POST',
+                        data: {
+                            id: self.id(),
                             alias: self.alias(),
                             location: self.location(),
                             tags: self.tags(),
+                        },
+                        success: function(data) {
+                            self.init(data.shrl);
+                            retrieveUrls();
+                        }
+                    });
+                }
+
+                self.save = function() {
+                    self.update();
+                    viewModel.edit(undefined);
+                }
+
+                self.closeModal = function() {
+                    viewModel.edit(undefined);
+                    retrieveUrls();
+                }
+
+                self.delete_shrl = function() {
+                    viewModel.edit(undefined);
+                    if (self.id() == undefined) { return; }
+                    $.ajax({
+                        url: '/admin/api/shrls',
+                        method: 'DELETE',
+                        data: {
+                            id: self.id(),
                         },
                         success: function(data) {
                             retrieveUrls();
@@ -105,17 +179,8 @@
                     });
                 }
 
-                self.delete_shrl = function() {
-                    $.ajax({
-                        url: '/admin/api/shrls',
-                        method: 'DELETE',
-                        data: {
-                            id: self.id,
-                        },
-                        success: function(data) {
-                            retrieveUrls();
-                        }
-                    });
+                self.edit = function() {
+                    viewModel.edit(self);
                 }
 
             }
@@ -125,10 +190,10 @@
 
                 self.urls = ko.observableArray(),
                 self.tags = ko.observableArray(),
-                self.search = ko.observable(),
+                self.search = ko.observable(localStorage.getItem('search')),
                 self.control = {
-                    page: ko.observable(0),
-                    count: ko.observable(50),
+                    page: ko.observable(localStorage.getItem('page') * 1 || 0),
+                    count: ko.observable(localStorage.getItem('count') * 1 || 50),
                     nextPage: function() {
                         self.control.page(self.control.page() + 1);
                         retrieveUrls();
@@ -139,9 +204,25 @@
                     },
                 }
 
+                self.edit = ko.observable();
+
+                self.showEdit = ko.computed(function() {
+                    if (this.edit() != undefined) {
+                        $('#edit-modal input.default').focus();
+                        $('#edit-modal').modal('show');
+                        return true;
+                    }
+                    $('#edit-modal').modal('hide');
+                    return false;
+                }, self);
+
                 self.submitQuery = function() {
                     self.control.page(0);
                     retrieveUrls();
+                }
+
+                self.newShrl = function() {
+                    self.edit(new Url());
                 }
             }
 
@@ -151,14 +232,18 @@
 
 
             function getUrl(url) {
-                result = viewModel.urls().find(function(item) { return item.id == url.id; });
+                result = viewModel.urls().find(function(item) { return item.id() == url.id; });
                 if (result == undefined) {
                     result = new Url(url);
                 }
+                result.init(url);
                 return result;
             }
 
             function retrieveUrls() {
+                localStorage.setItem('search', viewModel.search());
+                localStorage.setItem('page', viewModel.control.page());
+                localStorage.setItem('count', viewModel.control.count());
                 $.ajax({
                     url: '/admin/api/shrls',
                     dataType: 'json',
@@ -185,8 +270,9 @@
             }
 
             $(document).ready(function() {
+                $(window).on('focus', retrieveUrls);
                 retrieveUrls();
-                retrieveTags();
+                //retrieveTags();
                 setInterval(retrieveUrls, 30000);
                 ko.applyBindings(viewModel);
             });
@@ -223,7 +309,7 @@
                     method: 'GET',
                     data: data,
                     success: function(d) {
-                        console.log(d);
+                        retrieveUrls();
                     },
                 });
             }
@@ -246,94 +332,161 @@
                         prompt("Url has been uploaded successfully!", data);
                         $('#shrl_url').val("");
                         $('#shrl_short').val("");
+                        retrieveUrls();
                     },
                 });
             }
         </script>
-        <div class="container">
 
-            <div class="navbar">
-                <div class="navbar-inner">
-                    <a class="brand" href="/admin/">SHRLS Admin</a>
-                    <ul class="nav">
-                    </ul>
-                    <form data-bind='submit: submitQuery' class='navbar-search pull-right'>
-                        <input type='text' class='search-query' data-bind='value: search' placeholder='Search' name='search' />
-                    </form>
+        <div id='edit-modal' class='modal fade' data-bind='with: edit'>
+            <div class='modal-dialog' role='document'>
+                <div class='modal-content'>
+                    <div class='modal-header'>
+                        <button type='button' class='close' data-bind='click: closeModal'>x</button>
+                        <h4>Edit <b><span data-bind='text: alias'></span></b></h4>
+                    </div>
+                    <div class='modal-body'>
+                        <div class='form-group'>
+                            <label for='alias'>Short Url</label>
+                            <input class='form-control' id='alias' type='text' placeholder='Short Url' data-bind='value: alias, valueUpdate: "afterkeydown"' />
+                        </div>
+                        <div class='form-group'>
+                            <label for='location'>Destination</label>
+                            <input class='form-control default' id='location' type='text' placeholder='Destination' data-bind='value: location, valueUpdate: "afterkeydown"' />
+                        </div>
+
+                        <div class='form-group'>
+                            <label>Tags</label>
+                            <div class='well well-sm'>
+                                <span data-bind='tags: tags' class='col-md-4'></span>
+                            </div>
+                        </div>
+                        <div class='form-group'>
+                            <label for='views'>Views</label>
+                            <input class='form-control' disabled id='views' type='text' placeholder='Views' data-bind='value: views' />
+                        </div>
+                    </div>
+                    <div class='modal-footer'>
+                        <button type='button' class='btn btn-danger pull-left' data-bind='click: delete_shrl'>Delete</button>
+                        <button type='button' class='btn btn-secondary' data-bind='click: closeModal'>Close</button>
+                        <button type='button' class='btn btn-primary' data-bind='click: save'>Save changes</button>
+                    </div>
                 </div>
             </div>
+        </div>
+
+        <div class="container">
+
+            <nav class='navbar navbar-default'>
+
+                <div class='container-fluid'>
+                    <div style='width: 100%;' class="navbar-header">
+                        <a class="navbar-brand" href="/admin/">SHRLS Admin</a>
+
+                        <form data-bind='submit: submitQuery' class='navbar-form navbar-right'>
+
+                            <div class='form-group'>
+                                <button type='button' class='btn btn-primary' data-bind='click: newShrl'>
+                                    <span class='glyphicon glyphicon-plus'></span> New Url
+                                </button>
+                            </div>
+
+                            <div class='form-group'>
+                                <input type='text' class='form-control' data-bind='value: search' placeholder='Search' name='search' />
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </nav>
 
             <div class='row'>
-                <div class='span4'>
-                    <div class='row-fluid'>
+                <div class='col-md-4' style="margin-left: 35px;">
+                    <div class='row'>
                         <div class='dropzone' id='uploadFile'></div>
                     </div>
                 </div>
-                <div class='offset1 span7'>
-                    <div class='row-fluid'>
-                        <div class="row">
-                            <input id='title' type='text' class='span8' name='t' placeholder='Snippet Title' />
-                            <button type='button' onclick="upload_snippet()" class='span4 btn pull-right'>Upload Snippet</button>
+                <div class='col-md-offset-1 col-md-6'>
+
+                    <div class='col-md-12'>
+                        <div class='input-group'>
+                            <input id='title' class='form-control' placeholder='Snippet Title' name='' />
+                            <span class='input-group-btn'>
+                                <button onclick="upload_snippet()" class='btn btn-default'>Submit</button>
+                            </span>
                         </div>
                         <div class="row">
-                            <textarea id='content' style='font-family: monospace;' class='span12' rows=7 name='c'></textarea>
+                            <textarea id='content' style='font-family: monospace;' class='col-md-12' rows=7 name='c'></textarea>
                         </div>
                     </div>
+
                 </div>
             </div>
 
-            <div class='form-inline'>
-                <input class='span8' id='shrl_url' type='text' name='u' placeholder='Url' />
-                <input class='span2' id='shrl_short' type='text' name='s' placeholder='Short ID' />
-                <input type='checkbox' id='shrl_overwrite' class='checkbox' value='True' name='o' />
-                <input class='span2 input btn pull-right' onclick='create_shrl()' type='button' class='button' value='Create Url' name='' />
+            <!--
+            <div class='row'>
+                <div class='form-inline'>
+                    <div class='form-group'>
+                        <input class='form-control' id='shrl_url' type='text' name='u' placeholder='Url' />
+                        <input class='form-control' id='shrl_short' type='text' name='s' placeholder='Short ID' />
+                        <input class='input btn-default btn pull-right' onclick='create_shrl()' type='button' class='button' value='Create Url' name='' />
+                    </div>
+                </div>
             </div>
+            -->
 
-            <input class='btn' type='button' class='button' value='Previous Page' data-bind='click: control.prevPage' name='' />
-            <input class='btn' type='button' class='button' value='Next Page' data-bind='click: control.nextPage' name='' />
+            <hr>
 
-            <table class="table table-condensed table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th class='span1'>
-                            Views
-                        </th>
-                        <th class='shrl_overflow span4'>
-                            Url
-                        </th>
-                        <th>
-                            Tags
-                        </th>
-                        <th>
-                            Actions
-                        </th>
+            <input class='btn-default btn' type='button' class='button' value='Previous Page' data-bind='click: control.prevPage' name='' />
+            <input class='btn-default btn' type='button' class='button' value='Next Page' data-bind='click: control.nextPage' name='' />
+
+            <div class='table-responsive' style='overflow: hidden;'>
+                <table class="table table-condensed table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th class='col-md-1'>
+                                Views
+                            </th>
+                            <th class='shrl_overflow col-md-4'>
+                                Url
+                            </th>
+                            <th>
+                                Tags
+                            </th>
+                            <th>
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody data-bind='foreach: urls' data-bind='foreach: urls'>
+                    <tr data-bind='attr: {class:id}'>
+                        <td class='col-md-1'>
+                            <span data-bind='text: views'></span>
+                        </td>
+                        <td>
+                            <div class='col-md-4 shrl_overflow'>
+                                <b>
+                                    <a target="_blank" data-bind='attr: { href: href }, text: alias'></a>
+                                </b>
+                                <br>
+                                <small>
+                                    <a target="_blank" data-bind='attr: { href: location }, text: location'></a>
+                                </small>
+                            </div>
+                        </td>
+                        <td>
+                            <span data-bind='tags: tags' class='col-md-4'></span>
+                        </td>
+                        <td>
+                            <button class='btn btn-default btn-sm' data-bind='click: edit'>Edit</button>
+                            <button class='btn btn-primary btn-sm' data-bind='clipboard: href'>Copy</button>
+                        </td>
                     </tr>
-                </thead>
-                <tbody data-bind='foreach: urls' data-bind='foreach: urls'>
-                <tr>
-                    <td data-bind='text: views' class='span1'></td>
-                    <td>
-                        <div class='shrl_overflow span4'>
-                            <b>
-                                <a target="_blank" data-bind='attr: { href: href }, text: alias'></a>
-                            </b>
-                            <br>
-                            <small>
-                                <a target="_blank" data-bind='attr: { href: location }, text: location'></a>
-                            </small>
-                        </div>
-                    </td>
-                    <td>
-                        <span data-bind='tags: tags' class='span4'></span>
-                    </td>
-                    <td>
-                        <a href='#' data-bind="click: delete_shrl">Delete</a>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-            <input class='btn' type='button' class='button' value='Previous Page' data-bind='click: control.prevPage' name='' />
-            <input class='btn' type='button' class='button' value='Next Page' data-bind='click: control.nextPage' name='' />
+                    </tbody>
+                </table>
+            </div>
+            <input class='btn-default btn' type='button' class='button' value='Previous Page' data-bind='click: control.prevPage' name='' />
+            <input class='btn-default btn' type='button' class='button' value='Next Page' data-bind='click: control.nextPage' name='' />
         </div>
 
         <hr>

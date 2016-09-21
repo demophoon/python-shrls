@@ -2005,7 +2005,12 @@
         , data = $this.data('typeahead')
         , options = typeof option == 'object' && option
       if (!data) $this.data('typeahead', (data = new Typeahead(this, options)))
-      if (typeof option == 'string') data[option]()
+      if (typeof option == 'string') {
+          if (option == 'val') {
+              data['$element'].val('');
+          }
+          data[option]()
+      }
     })
   }
 
