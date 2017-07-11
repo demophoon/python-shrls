@@ -26,6 +26,8 @@ from shrls.models import (
     Url,
     Tag,
     Snippet,
+    View,
+    Header,
     allowed_shortner_chars,
 )
 
@@ -161,6 +163,14 @@ def return_tagged_url(tagname):
     return redirect(location, code=302)
 
 
+def record_view(url):
+    view = View(url.id, request.environ['HTTP_X_FORWARDED_FOR'], request.url)
+    for k, v in request.headers.items():
+        view.headers.append(Header(k, v))
+    DBSession.add(view)
+    DBSession.commit()
+
+
 @app.route('/<path:url_id>')
 def url_redirect(url_id):
     extras = request.url.split('?')[1:]
@@ -183,6 +193,8 @@ def url_redirect(url_id):
     if redirect_obj:
         redirect_obj = random.choice(redirect_obj)
         location = redirect_obj.location
+        record_view(redirect_obj)
+
         if extras:
             if not extras[0].startswith('/'):
                 location += '/'
