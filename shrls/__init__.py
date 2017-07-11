@@ -1,9 +1,14 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import os
+import random
 
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 
 app = Flask(__name__, static_url_path='/static')
+app.config['SECRET_KEY'] = str(random.random())
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////%s/urls.db' % os.getcwd()
 app.config['UPLOAD_FOLDER'] = '%s/uploads/' % os.getcwd()
 

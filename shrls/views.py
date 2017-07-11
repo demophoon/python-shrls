@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import os
 import random
 import json
@@ -161,6 +164,8 @@ def return_tagged_url(tagname):
 @app.route('/<path:url_id>')
 def url_redirect(url_id):
     extras = request.url.split('?')[1:]
+    base = url_id.split('/')[0]
+    filters = url_id.split('/')[1:]
     print "{}: {}".format(request.environ['PATH_INFO'], request.environ['HTTP_X_FORWARDED_FOR'])
     canned_responses = {
     }
@@ -168,7 +173,13 @@ def url_redirect(url_id):
     if response:
         return response
     url_id = url_id.split('.')[0]
-    redirect_obj = DBSession.query(Url).filter(Url.alias == url_id).all()
+    query = DBSession.query(Url).filter(Url.alias == url_id)
+    if query.count() == 0:
+        query = DBSession.query(Url).filter(Url.alias == base)
+    if filters and query.count() > 1:
+        for f in filters:
+            query = query.filter(Url.location.ilike("%{}%".format(f)))
+    redirect_obj = query.all()
     if redirect_obj:
         redirect_obj = random.choice(redirect_obj)
         location = redirect_obj.location
@@ -276,6 +287,23 @@ def restore():
     DBSession.commit()
     return redirect('/admin/', code=302)
 
+
+
+@app.route('/admin/api/snippet')
+@requires_auth
+def get_snippets():
+    final = {
+    }
+    snippets = [DBSession.query(Snippet).first()]
+    final['snippets'] = [{
+        'id': x.id,
+        'created_at': x.created_at,
+        'alias': x.alias,
+        'title': x.title,
+        'content': x.content,
+        'views': x.views,
+    } for x in snippets]
+    return jsonify(final)
 
 
 @app.route('/admin/api/shrls')
@@ -429,7 +457,7 @@ def post_shrl():
         shrl_id = int(shrl_id)
 
     shrl = create_url(longurl, shorturl=alias, creator=creator, shrl_id=shrl_id, tags=tags)
-    alias = '{}/{}'.format(app.config['shrls_base_url'], shrl.alias)
+    alias = u"{}/{}".format(app.config['shrls_base_url'], shrl.alias)
     return jsonify({
         'status': 'success',
         'url': alias,

@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import string
 import random
 import datetime
@@ -105,6 +108,35 @@ class Snippet(Base):
 
     def __repr__(self):
         return str(self.alias)
+
+
+class View(Base):
+    __tablename__ = 'views'
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime)
+    urls_id = Column(Integer, ForeignKey('urls.id'))
+    ip = Column(Text)
+    request = Column(Text)
+    headers = relationship("Header", back_populates='view')
+
+    def __init__(self, urls_id, ip, request):
+        self.timestamp = datetime.datetime.now()
+        self.urls_id = urls_id
+        self.ip = ip
+        self.request = request
+
+
+class Header(Base):
+    __tablename__ = 'headers'
+    id = Column(Integer, primary_key=True)
+    views_id = Column(Integer, ForeignKey('views.id'))
+    key = Column(Text)
+    value = Column(Text)
+    view = relationship("View", back_populates='headers')
+
+    def __init__(self, key, value):
+        self.key = key
+        self.value = value
 
 
 def initialize_shrls_db():
