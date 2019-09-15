@@ -34,6 +34,7 @@ from shrls.models import (
 from sqlalchemy import (
     or_,
     not_,
+    desc,
 )
 
 
@@ -164,7 +165,7 @@ def return_tagged_url(tagname):
 
 
 def record_view(url):
-    view = View(url.id, request.environ['HTTP_X_FORWARDED_FOR'], request.url)
+    view = View(url.id, request.environ['HTTP_X_REAL_IP'], request.url)
     for k, v in request.headers.items():
         view.headers.append(Header(k, v))
     DBSession.add(view)
@@ -206,17 +207,28 @@ def url_redirect(url_id):
     return not_found()
 
 
-@app.route('/info/<path:url_id>')
+@app.route('/admin/info/')
+@requires_auth
+def all_info():
+    requests = DBSession.query(View).order_by(View.timestamp.desc()).limit(25).all()
+
+    info_obj = {}
+    info_obj['requests'] = [{
+        'id': r.id,
+        'timestamp': r.timestamp,
+        'ip': r.ip,
+        'path': r.request,
+        'alias': r.url.alias,
+        'headers': {header.key: header.value for header in r.headers},
+    } for r in requests]
+    return jsonify(info_obj)
+
+
+@app.route('/admin/info/<path:url_id>')
 @requires_auth
 def url_info(url_id):
     url_id = url_id.split('.')[0]
     info_obj = {}
-    print dir(request)
-    print request.environ['HTTP_X_REAL_IP']
-    print request.environ['HTTP_USER_AGENT']
-    print request.environ['PATH_INFO']
-    print request.environ['HTTP_COOKIE']
-    print request.environ.keys()
     urls = DBSession.query(Url).filter(Url.alias == url_id).all()
 
     info_obj['urls'] = []
@@ -227,16 +239,16 @@ def url_info(url_id):
             'alias': url.alias,
             'location': url.location,
             'views': url.views,
+            'tags': [t.name for t in url.tags],
+            'requests': {r.id: {
+                'timestamp': r.timestamp,
+                'ip': r.ip,
+                'path': r.request,
+                'alias': r.url.alias,
+                'headers': {header.key: header.value for header in r.headers},
+            } for r in url.requests.order_by(desc(View.timestamp)).limit(25)},
         })
     return jsonify(info_obj)
-    if redirect_obj:
-        redirect_obj = random.choice(redirect_obj)
-        location = redirect_obj.location
-        redirect_obj.views += 1
-        DBSession.add(redirect_obj)
-        DBSession.commit()
-        return redirect(location, code=302)
-    return not_found()
 
 
 @app.route('/admin/backup/')
@@ -283,8 +295,13 @@ def restore():
     payload = request.files['file']
     payload = json.loads(payload.read())
     db_entities = []
+    known_tags = {}
     for url in payload['urls']:
         u = Url(url['location'], url['alias'], url['views'])
+        for tag in url['tags']:
+            if tag not in known_tags:
+                known_tags[tag] = Tag(tag)
+        url['tags'] = [known_tags[tag] for tag in url['tags']]
         for k, v in url.items():
             setattr(u, k, v)
         u.created_at = datetime.datetime.fromtimestamp(url['created_at'])

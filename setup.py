@@ -9,8 +9,8 @@ setup(
     description = ('Short URL Service'),
     license = 'MIT',
     install_requires=[
-        'Flask',
-        'Flask-SQLAlchemy',
+        'flask',
+        'flask-SQLAlchemy',
         'sqlalchemy',
         'oath',
     ],

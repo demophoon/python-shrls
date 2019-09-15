@@ -75,6 +75,7 @@ class Url(Base):
     location = Column(Text)
     views = Column(Integer)
     tags = relationship("Tag", secondary=tags_to_urls_table, back_populates="urls")
+    requests = relationship("View", back_populates='url', order_by='asc(View.timestamp)', lazy='dynamic')
 
     def __init__(self, location, alias=None, views=0):
         if not(alias):
@@ -118,6 +119,7 @@ class View(Base):
     ip = Column(Text)
     request = Column(Text)
     headers = relationship("Header", back_populates='view')
+    url = relationship("Url", back_populates='requests')
 
     def __init__(self, urls_id, ip, request):
         self.timestamp = datetime.datetime.now()

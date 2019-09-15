@@ -2,3 +2,4 @@
 .ropeproject
 *.egg-info
 urls.db
+.venv

@@ -5,7 +5,7 @@ import os
 import random
 
 from flask import Flask
-from flask.ext.sqlalchemy import SQLAlchemy
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__, static_url_path='/static')
 app.config['SECRET_KEY'] = str(random.random())
