@@ -177,7 +177,7 @@ def url_redirect(url_id):
     extras = request.url.split('?')[1:]
     base = url_id.split('/')[0]
     filters = url_id.split('/')[1:]
-    print "{}: {}".format(request.environ['PATH_INFO'], request.environ['HTTP_X_FORWARDED_FOR'])
+    print("{}: {}".format(request.environ['PATH_INFO'], request.environ['HTTP_X_FORWARDED_FOR']))
     canned_responses = {
     }
     response = canned_responses.get(request.environ['HTTP_X_FORWARDED_FOR'])
@@ -530,7 +530,7 @@ def render_url():
 @app.route('/admin/snippet', methods=['POST'])
 @requires_auth
 def create_snippet():
-    print request.args
+    print(request.args)
     content = request.form.get('c')
     title = request.form.get('t')
     shortid = request.form.get('s')
